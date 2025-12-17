@@ -27,140 +27,137 @@ Modified by: Vinman <vinman.cub@gmail.com>
 
 
 namespace gazebo {
-  GazeboMimicJointPlugin::GazeboMimicJointPlugin()
+  struct GazeboMimicJointPluginPrivate
   {
-    joint_.reset();
-    mimic_joint_.reset();
+    bool hasPID;
+    double offset;
+    double multiplier;
+    double maxEffort;
+    double sensitiveness;
+
+    Entity jointEntity{kNullEntity};
+    Entity mimicJointEntity{kNullEntity};    
+  };
+
+  GazeboMimicJointPlugin::GazeboMimicJointPlugin()
+    : dataPtr(std::make_unique<GazeboMimicJointPluginPrivate>())
+  {
   }
 
   GazeboMimicJointPlugin::~GazeboMimicJointPlugin()
   {
-    update_connection_.reset();
   }
 
-  void GazeboMimicJointPlugin::Load(gazebo::physics::ModelPtr parent, sdf::ElementPtr sdf)
+  void GazeboMimicJointPlugin::Configure(const Entity &_entity,
+                                         const std::shared_ptr<const sdf::Element> &_sdf,
+                                         EntityComponentManager &_ecm,
+                                         EventManager &/*_eventMgr*/)
   {
-    model_ = parent;
-    model_nh_ = gazebo_ros::Node::Get(sdf);
-
-    RCLCPP_INFO(
-      model_nh_->get_logger(), "Starting GazeboMimicJointPlugin in namespace: %s, name: %s",
-      model_nh_->get_namespace(), model_nh_->get_name());
-
-    // Error message if the model couldn't be found
-    if (!model_) {
-      RCLCPP_ERROR_STREAM(model_nh_->get_logger(), "parent model is NULL");
+    std::string jointName, mimicJointName;
+    if (_sdf->HasElement("joint"))
+      jointName = _sdf->Get<std::string>("joint");
+    else
+    {
+      // gzerr << "MimicJointSystem: Missing required <joint> parameter\n";
       return;
     }
 
-    // Check that ROS has been initialized
-    if (!rclcpp::ok()) {
-      RCLCPP_FATAL_STREAM(
-        model_nh_->get_logger(),
-        "A ROS node for Gazebo has not been initialized, unable to load plugin. " <<
-          "Load the Gazebo system plugin 'libgazebo_ros2_mimic_joint_plugin.so' in the gazebo_ros package)");
+    if (_sdf->HasElement("mimicJoint"))
+      mimicJointName = _sdf->Get<std::string>("mimicJoint");
+    else
+    {
+      // gzerr << "MimicJointSystem: Missing required <mimicJoint> parameter\n";
       return;
     }
 
-    // Check for joint element
-    if (!sdf->HasElement("joint")) {
-      RCLCPP_ERROR(model_nh_->get_logger(), "No joint element present. GazeboMimicJointPlugin could not be loaded.");
-      return;
+    if (_sdf->HasElement("multiplier"))
+      this->dataPtr->multiplier = _sdf->Get<double>("multiplier");
+
+    if (_sdf->HasElement("offset"))
+      this->dataPtr->offset = _sdf->Get<double>("offset");
+
+    if (_sdf->HasElement("sensitiveness"))
+      this->dataPtr->sensitiveness = _sdf->Get<double>("sensitiveness");
+
+    if (_sdf->HasElement("maxEffort"))
+      this->dataPtr->maxEffort = _sdf->Get<double>("maxEffort");
+
+    if (_sdf->HasElement("hasPID"))
+    {
+      this->dataPtr->hasPID = true;
+      // // If <hasPID/> exists with no value, treat as true
+      // if (_sdf->GetElement("hasPID")->GetValue())
+      //   this->dataPtr->hasPID = _sdf->Get<bool>("hasPID");
+      // else
+      //   this->dataPtr->hasPID = true;
     }
 
-    joint_name_ = sdf->GetElement("joint")->Get<std::string>();
+    gz::sim::Model model(_entity);
+    this->dataPtr->jointEntity = model.JointByName(_ecm, jointName);
+    this->dataPtr->mimicJointEntity = model.JointByName(_ecm, mimicJointName);
 
-    // Check for mimicJoint element
-    if (!sdf->HasElement("mimicJoint")) {
-      RCLCPP_ERROR(model_nh_->get_logger(), "No mimicJoint element present. GazeboMimicJointPlugin could not be loaded.");
-      return;
-    }
-
-    mimic_joint_name_ = sdf->GetElement("mimicJoint")->Get<std::string>();
-
-    // Check if PID controller wanted
-    has_pid_ = sdf->HasElement("hasPID");
-    if (has_pid_) {
-      const std::string prefix = "gains." + joint_name_;
-      const auto k_p = model_nh_->declare_parameter<double>(prefix + ".p", 10.0);
-      const auto k_i = model_nh_->declare_parameter<double>(prefix + ".i", 0.1);
-      const auto k_d = model_nh_->declare_parameter<double>(prefix + ".d", 0.0);
-      const auto i_clamp = model_nh_->declare_parameter<double>(prefix + ".i_clamp", 0.2);
-      // Initialize PID
-      pid_ = std::make_shared<control_toolbox::Pid>(k_p, k_i, k_d, i_clamp, -i_clamp);
-    }
-
-    // Check for multiplier element
-    multiplier_ = 1.0;
-    if (sdf->HasElement("multiplier"))
-      multiplier_ = sdf->GetElement("multiplier")->Get<double>();
-
-    // Check for offset element
-    offset_ = 0.0;
-    if (sdf->HasElement("offset"))
-      offset_ = sdf->GetElement("offset")->Get<double>();
-
-    // Check for sensitiveness element
-    sensitiveness_ = 0.0;
-    if (sdf->HasElement("sensitiveness"))
-      sensitiveness_ = sdf->GetElement("sensitiveness")->Get<double>();
-
-    // Get pointers to joints
-    joint_ = model_->GetJoint(joint_name_);
-    if (!joint_) {
-      RCLCPP_ERROR(model_nh_->get_logger(), "No joint named \"%s\". GazeboMimicJointPlugin could not be loaded.", joint_name_.c_str());
-      return;
-    }
-    mimic_joint_ = model_->GetJoint(mimic_joint_name_);
-    if (!mimic_joint_) {
-      RCLCPP_ERROR(model_nh_->get_logger(), "No (mimic) joint named \"%s\". GazeboMimicJointPlugin could not be loaded.", mimic_joint_name_.c_str());
-      return;
-    }
-
-      // Check for max effort
-    if (sdf->HasElement("maxEffort")) {
-      max_effort_ = sdf->GetElement("maxEffort")->Get<double>();
-    }
-    else {
-      max_effort_ = mimic_joint_->GetEffortLimit(0);
-    }
-
-    // Set max effort
-    if (!has_pid_) {
-      mimic_joint_->SetParam("fmax", 0, max_effort_);
-    }
-
-    loop_rate_ = rclcpp::Rate::make_shared(1.0 / model_->GetWorld()->Physics()->GetMaxStepSize());
-
-    // Listen to the update event. This event is broadcast every
-    // simulation iteration.
-    update_connection_ = event::Events::ConnectWorldUpdateBegin(
-        boost::bind(&GazeboMimicJointPlugin::OnUpdate, this));
-
-    // Output some confirmation
-    RCLCPP_INFO_STREAM(model_nh_->get_logger(), "GazeboMimicJointPlugin loaded! Joint: \"" << joint_name_ << "\", Mimic joint: \"" << mimic_joint_name_ << "\""
-                                                          << ", Multiplier: " << multiplier_ << ", Offset: " << offset_
-                                                          << ", MaxEffort: " << max_effort_ << ", Sensitiveness: " << sensitiveness_);
+    auto joint = Joint(this->dataPtr->jointEntity);
+    joint.EnablePositionCheck(_ecm, true);
+    auto mimic_joint = Joint(this->dataPtr->mimicJointEntity);
+    mimic_joint.EnablePositionCheck(_ecm, true);
   }
 
-  void GazeboMimicJointPlugin::OnUpdate()
+  // Implement PreUpdate callback, provided by ISystemPostUpdate
+  // and called at every iteration, after physics is done
+  void GazeboMimicJointPlugin::PostUpdate(const UpdateInfo &/*_info*/, 
+                                          const EntityComponentManager &_ecm)
   {
-    // Set mimic joint's angle based on joint's angle
-    double angle = joint_->Position(0) * multiplier_ + offset_;
-    double a = mimic_joint_->Position(0);
+    if (this->dataPtr->jointEntity == gz::sim::kNullEntity || this->dataPtr->mimicJointEntity == gz::sim::kNullEntity)
+      return;
 
-    if (fabs(angle - a) >= sensitiveness_) {
-      if (has_pid_) {
-        double error = angle - a;
-        double effort = ignition::math::clamp(pid_->computeCommand(error, loop_rate_->period().count()), -max_effort_, max_effort_);
-        mimic_joint_->SetForce(0, effort);
-      }
-      else {
-        mimic_joint_->SetPosition(0, angle, true);
-      }
+    auto jointPosComp = _ecm.Component<components::JointPosition>(this->dataPtr->jointEntity);
+    auto mimicPosComp = _ecm.Component<components::JointPosition>(this->dataPtr->mimicJointEntity);
+
+    if (!jointPosComp || jointPosComp->Data().empty() ||
+        !mimicPosComp || mimicPosComp->Data().empty())
+      return;
+
+    double jointPos = jointPosComp->Data()[0];
+    double mimicPos = mimicPosComp->Data()[0];
+
+    double targetPos = this->dataPtr->multiplier * jointPos + this->dataPtr->offset;
+
+    // Sensitiveness threshold
+    if (std::abs(targetPos - mimicPos) <= this->dataPtr->sensitiveness)
+      return;
+
+    // ⚠️ 关键修复：const_cast 允许写入
+    auto &ecm = const_cast<EntityComponentManager &>(_ecm);
+
+    if (this->dataPtr->hasPID)
+    {
+      // In Ignition/Gz Sim, there is no built-in PID in the system.
+      // You would need to implement one or use JointForceCmd with P control.
+      // For now, we use simple P control as fallback.
+      double error = targetPos - mimicPos;
+      double effort = 80.0 * error;  // Tune gain as needed
+      effort = std::clamp(effort, -this->dataPtr->maxEffort, this->dataPtr->maxEffort);
+      ecm.SetComponentData<components::JointForceCmd>(this->dataPtr->mimicJointEntity, {effort});
+    }
+    else
+    {
+      // Gz Sim does NOT support direct position setting in physics simulation.
+      // So even without PID, we must use force/torque.
+      // Therefore, we treat both cases similarly.
+      double error = targetPos - mimicPos;
+      double effort = 50.0 * error;  // Lower gain if no PID
+      effort = std::clamp(effort, -this->dataPtr->maxEffort, this->dataPtr->maxEffort);
+      ecm.SetComponentData<components::JointForceCmd>(this->dataPtr->mimicJointEntity, {effort});
     }
   }
 
-  GZ_REGISTER_MODEL_PLUGIN(GazeboMimicJointPlugin)
-
+  // Register plugin
+  IGNITION_ADD_PLUGIN(GazeboMimicJointPlugin,
+                      // GazeboMimicJointPlugin::System,
+                      gz::sim::System,
+                      GazeboMimicJointPlugin::ISystemConfigure,
+                      GazeboMimicJointPlugin::ISystemPostUpdate)
+  // Add plugin alias so that we can refer to the plugin without the version
+  // namespace
+  IGNITION_ADD_PLUGIN_ALIAS(GazeboMimicJointPlugin, "gz::sim::systems::GazeboMimicJointPlugin")
 }  // namespace gazebo
