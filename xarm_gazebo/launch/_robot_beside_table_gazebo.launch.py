@@ -65,7 +65,7 @@ def launch_setup(context, *args, **kwargs):
     ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
     moveit_config_dump = LaunchConfiguration('moveit_config_dump', default='')
 
-    gz_type = LaunchConfiguration('gz_type', default='gazebo').perform(context)
+    gz_type = LaunchConfiguration('gz_type', default='ign').perform(context)
     gz_type = 'ignition' if gz_type == 'ign' else gz_type
     if ros2_control_plugin.perform(context) == '':
         ros2_control_plugin = 'gz_ros2_control/GazeboSimSystem' if gz_type == 'gz' else 'ign_ros2_control/IgnitionSystem' if gz_type == 'ignition' else 'gazebo_ros2_control/GazeboSystem'
