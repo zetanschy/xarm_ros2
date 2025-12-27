@@ -213,6 +213,8 @@ def launch_setup(context, *args, **kwargs):
         'publish_geometry_updates': True,
         'publish_state_updates': True,
         'publish_transforms_updates': True,
+        'publish_robot_description': True,  # Required for MoveItPy Python API
+        'publish_robot_description_semantic': True,  # Required for MoveItPy Python API
         # "planning_scene_monitor_options": {
         #     "name": "planning_scene_monitor",
         #     "robot_description": "robot_description",

@@ -108,6 +108,9 @@ def launch_setup(context, *args, **kwargs):
         geometry_mesh_origin_rpy=geometry_mesh_origin_rpy,
         geometry_mesh_tcp_xyz=geometry_mesh_tcp_xyz,
         geometry_mesh_tcp_rpy=geometry_mesh_tcp_rpy,
+    ).planning_scene_monitor(
+        publish_robot_description=True,  # Required for MoveItPy Python API
+        publish_robot_description_semantic=True,  # Required for MoveItPy Python API
     ).to_moveit_configs()
 
     moveit_config_dump = yaml.dump(moveit_config.to_dict())
