@@ -195,6 +195,7 @@ def launch_setup(context, *args, **kwargs):
                 # ('/world/empty/model/UF_ROBOT/joint_state', 'joint_states'),
                 # ('/camera/depth/image', '/camera/depth/image_raw'),
             ],
+            parameters=[{'use_sim_time': True}],
             output='screen'
         )
     elif gz_type == 'ignition':
@@ -249,6 +250,7 @@ def launch_setup(context, *args, **kwargs):
             # remappings=[
             #     ('/xarm/joint_states', 'joint_states'),
             # ],
+            parameters=[{'use_sim_time': True}],
             output='screen'
         )
     else:

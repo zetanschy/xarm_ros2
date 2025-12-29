@@ -18,7 +18,7 @@ These are not set by default and are needed for MoveItPy to find the robot descr
 """
 
 import rclpy
-from rclpy.logging import get_logger
+from rclpy.node import Node
 from moveit.core.robot_state import RobotState
 from moveit.planning import MoveItPy
 from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
@@ -27,11 +27,22 @@ from moveit.core.kinematic_constraints import construct_joint_constraint
 
 def main():
     rclpy.init()
-    logger = get_logger("moveit_py.xarm_goal")
+    node = Node("test_simple_api")
+    logger = node.get_logger()
     
     try:
+        # Get use_sim_time parameter
+        # When passed via --ros-args -p use_sim_time:=true, ROS2 automatically declares it
+        # Try to get it first, and only declare if it doesn't exist
+        if node.has_parameter('use_sim_time'):
+            use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
+        else:
+            node.declare_parameter('use_sim_time', False)
+            use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
+        
         logger.info("="*60)
         logger.info("MoveIt2 Python API Test for xArm")
+        logger.info(f"use_sim_time: {use_sim_time}")
         logger.info("="*60)
         
         # Configuration
@@ -54,7 +65,6 @@ def main():
             file_path=get_package_share_directory("xarm_moveit_config") + "/config/moveit_cpp.yaml"
         )
         moveit_config_dict = moveit_config_builder.to_moveit_configs().to_dict()
-        # moveit_config_dict['use_sim_time'] = True
         xarm_moveit = MoveItPy(node_name="moveit_py", config_dict=moveit_config_dict)
         xarm_arm = xarm_moveit.get_planning_component(planning_group)
         logger.info("✓ MoveItPy initialized")
@@ -100,6 +110,7 @@ def main():
         traceback.print_exc()
         return 1
     finally:
+        node.destroy_node()
         rclpy.shutdown()
 
 

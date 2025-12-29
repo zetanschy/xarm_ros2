@@ -27,7 +27,7 @@ def launch_setup(context, *args, **kwargs):
     attach_rpy = LaunchConfiguration('attach_rpy', default='"0 0 0"')
     no_gui_ctrl = LaunchConfiguration('no_gui_ctrl', default=False)
     show_rviz = LaunchConfiguration('show_rviz', default=True)
-    use_sim_time = LaunchConfiguration('use_sim_time', default=False)
+    use_sim_time = LaunchConfiguration('use_sim_time', default=True)
     moveit_config_dump = LaunchConfiguration('moveit_config_dump')
     rviz_config = LaunchConfiguration('rviz_config', default='')
     
