@@ -59,30 +59,17 @@ def main():
             limited=True,
         )
         moveit_config_builder.moveit_cpp(
-            file_path=get_package_share_directory("xarm_moveit_config") + "/config/moveit_cpp.yaml"
+            file_path=get_package_share_directory("xarm_moveit_config") + "/config/moveit_planning_python.yaml"
         )
-        moveit_config_dict = moveit_config_builder.to_moveit_configs().to_dict()
+        # Get config dict
+        moveit_config_dict = moveit_config_builder.to_dict()
         
-        # Add use_sim_time to config dict for MoveItPy's internal node
+        # Add use_sim_time to config dict for MoveItPy's internal node if not already present
         if 'use_sim_time' not in moveit_config_dict:
             moveit_config_dict['use_sim_time'] = use_sim_time
         
-        # Fix for MoveItPy QoS override issue when use_sim_time is True
-        # MoveItPy tries to set QoS overrides after node creation, which fails.
-        # We must set them in the config dict before initialization.
-        if use_sim_time:
-            if 'qos_overrides' not in moveit_config_dict:
-                moveit_config_dict['qos_overrides'] = {}
-            if '/clock' not in moveit_config_dict['qos_overrides']:
-                moveit_config_dict['qos_overrides']['/clock'] = {}
-            if 'subscription' not in moveit_config_dict['qos_overrides']['/clock']:
-                moveit_config_dict['qos_overrides']['/clock']['subscription'] = {}
-            
-            # Set all required QoS parameters for /clock subscription
-            moveit_config_dict['qos_overrides']['/clock']['subscription']['durability'] = 'transient_local'
-            moveit_config_dict['qos_overrides']['/clock']['subscription']['reliability'] = 'reliable'
-            moveit_config_dict['qos_overrides']['/clock']['subscription']['history'] = 'keep_last'
-            moveit_config_dict['qos_overrides']['/clock']['subscription']['depth'] = 10
+        # Apply QoS override fix (needed after adding use_sim_time)
+        MoveItConfigsBuilder._add_qos_overrides_for_sim_time(moveit_config_dict)
         
         # Initialize MoveItPy
         xarm_moveit = MoveItPy(node_name="moveit_py", config_dict=moveit_config_dict)
@@ -101,9 +88,9 @@ def main():
         joint_values = {
             "joint1": 0.5,
             "joint2": 0.0,
-            "joint3": 0.0,
+            "joint3": -0.5,
             "joint4": 0.0,
-            "joint5": 0.0,
+            "joint5": -0.5,
             "joint6": 0.0,
         }
         

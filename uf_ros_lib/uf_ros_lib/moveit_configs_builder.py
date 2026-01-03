@@ -815,6 +815,31 @@ class MoveItConfigsBuilder(ParameterBuilder):
                 self.pilz_cartesian_limits()
         return self.__moveit_configs
 
+    @staticmethod
+    def _add_qos_overrides_for_sim_time(parameters):
+        """Add QoS overrides for /clock topic when use_sim_time is True.
+        
+        This is a fix for MoveItPy QoS override issue when use_sim_time is True.
+        MoveItPy tries to set QoS overrides after node creation, which fails.
+        We must set them in the config dict before initialization.
+        
+        :param parameters: Dictionary of parameters (modified in place)
+        """
+        use_sim_time = parameters.get('use_sim_time', False)
+        if isinstance(use_sim_time, bool) and use_sim_time:
+            if 'qos_overrides' not in parameters:
+                parameters['qos_overrides'] = {}
+            if '/clock' not in parameters['qos_overrides']:
+                parameters['qos_overrides']['/clock'] = {}
+            if 'subscription' not in parameters['qos_overrides']['/clock']:
+                parameters['qos_overrides']['/clock']['subscription'] = {}
+            
+            # Set all required QoS parameters for /clock subscription
+            parameters['qos_overrides']['/clock']['subscription']['durability'] = 'transient_local'
+            parameters['qos_overrides']['/clock']['subscription']['reliability'] = 'reliable'
+            parameters['qos_overrides']['/clock']['subscription']['history'] = 'keep_last'
+            parameters['qos_overrides']['/clock']['subscription']['depth'] = 10
+
     def to_dict(self, include_moveit_configs = True):
         """Get loaded parameters from xarm_moveit_config as a dictionary.
 
@@ -825,6 +850,10 @@ class MoveItConfigsBuilder(ParameterBuilder):
         parameters = self._parameters
         if include_moveit_configs:
             parameters.update(self.to_moveit_configs().to_dict())
+        
+        # Apply QoS override fix if use_sim_time is set
+        self._add_qos_overrides_for_sim_time(parameters)
+        
         return parameters
 
 
