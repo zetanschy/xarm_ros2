@@ -28,7 +28,7 @@ import traceback
 
 def main():
     rclpy.init()
-    node = Node("test_simple_api")
+    node = Node("moveit_py_joint_goal")
     logger = node.get_logger()
     
     try:
