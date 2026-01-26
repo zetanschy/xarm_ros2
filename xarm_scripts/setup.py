@@ -24,8 +24,8 @@ setup(
     entry_points={
         'console_scripts': [
             'test_pymoveit2_api = xarm_scripts.test_pymoveit2_api:main',
-            'moveit_py_joint_goal = xarm_scripts.moveit_py_joint_goal:main',
-            'moveit_py_pose_goal = xarm_scripts.moveit_py_pose_goal:main',
+            'example_joint_goal = xarm_scripts.example_joint_goal:main',
+            'example_pose_goal = xarm_scripts.example_pose_goal:main',
             'example_robot_state = xarm_scripts.example_robot_state:main',
             'example_planning_scene = xarm_scripts.example_planning_scene:main',
             'example_kinematic_constraints = xarm_scripts.example_kinematic_constraints:main',
