@@ -32,9 +32,6 @@ def main():
     logger = node.get_logger()
     
     try:
-        # Get use_sim_time parameter
-        # When passed via --ros-args -p use_sim_time:=true, ROS2 automatically declares it
-        # Try to get it first, and only declare if it doesn't exist
         if node.has_parameter('use_sim_time'):
             use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
         else:
@@ -84,7 +81,6 @@ def main():
         xarm_arm.set_start_state_to_current_state()
         
         # Set target joint values (in radians)
-        # Adjust these values based on your robot's joint limits
         joint_values = {
             "joint1": 0.5,
             "joint2": 0.0,

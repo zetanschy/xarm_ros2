@@ -33,9 +33,6 @@ def main():
     logger = node.get_logger()
     
     try:
-        # Get use_sim_time parameter
-        # When passed via --ros-args -p use_sim_time:=true, ROS2 automatically declares it
-        # Try to get it first, and only declare if it doesn't exist
         if node.has_parameter('use_sim_time'):
             use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
         else:
@@ -88,9 +85,9 @@ def main():
         pose_goal = PoseStamped()
         pose_goal.header.frame_id = "link_base"
         pose_goal.pose.orientation.w = 1.0
-        pose_goal.pose.position.x = 0.5
-        pose_goal.pose.position.y = 0.0
-        pose_goal.pose.position.z = 0.0
+        pose_goal.pose.position.x = 0.2
+        pose_goal.pose.position.y = -0.3
+        pose_goal.pose.position.z = 0.3
         xarm_arm.set_goal_state(pose_stamped_msg=pose_goal, pose_link="link6")
 
         # Create a plan to the target pose
