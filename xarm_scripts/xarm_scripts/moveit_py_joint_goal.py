@@ -25,6 +25,7 @@ from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 from ament_index_python import get_package_share_directory
 from moveit.core.kinematic_constraints import construct_joint_constraint
 import traceback
+import time
 
 def main():
     rclpy.init()
@@ -100,10 +101,42 @@ def main():
         xarm_arm.set_goal_state(motion_plan_constraints=[joint_constraint])
 
         # Create a plan to the target pose
+        logger.info("Planning to target joint configuration...")
         plan_result = xarm_arm.plan()
-        robot_trajectory = plan_result.trajectory
-        xarm_moveit.execute(planning_group,robot_trajectory, blocking=True)
+        if not plan_result:
+            logger.error("Planning failed!")
+            return 1
         
+        robot_trajectory = plan_result.trajectory
+        logger.info("Executing trajectory to target position...")
+        xarm_moveit.execute(planning_group, robot_trajectory, blocking=True)
+        logger.info("✓ Reached target position")
+        
+        time.sleep(5)
+        
+        # Return to home position using named configuration from SRDF
+        logger.info("\nReturning to home position (using SRDF named configuration)...")
+        xarm_arm.set_start_state_to_current_state()
+        
+        # Check available named target states
+        named_targets = xarm_arm.named_target_states
+        logger.info(f"Available named target states: {named_targets}")
+        
+        # Use "home" configuration from SRDF
+        logger.info("Using 'home' configuration from SRDF")
+        xarm_arm.set_goal_state(configuration_name="home")
+        
+        
+        logger.info("Planning to home position...")
+        home_plan_result = xarm_arm.plan()
+        if not home_plan_result:
+            logger.warn("Planning to home position failed!")
+            return 1
+        
+        home_trajectory = home_plan_result.trajectory
+        logger.info("Executing trajectory to home position...")
+        xarm_moveit.execute(planning_group, home_trajectory, blocking=True)
+        logger.info("✓ Returned to home position")
 
     except Exception as e:
         logger.error(f"✗ Error: {str(e)}")
