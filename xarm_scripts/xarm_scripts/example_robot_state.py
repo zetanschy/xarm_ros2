@@ -20,6 +20,7 @@ from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 from ament_index_python import get_package_share_directory
 import numpy as np
 import traceback
+import time
 
 
 def main():
@@ -68,6 +69,15 @@ def main():
         planning_component = xarm_moveit.get_planning_component(planning_group)
         planning_scene_monitor = xarm_moveit.get_planning_scene_monitor()
         logger.info("MoveItPy initialized successfully")
+        
+        # Wait for clock synchronization and robot state updates
+        # This helps ensure the planning scene monitor has received robot state
+        if use_sim_time:
+            logger.info("Waiting for clock synchronization (2 seconds)...")
+            time.sleep(2.0)
+        else:
+            logger.info("Waiting for robot state updates (1 second)...")
+            time.sleep(1.0)
         
         # Get joint model group
         joint_model_group = robot_model.get_joint_model_group(planning_group)

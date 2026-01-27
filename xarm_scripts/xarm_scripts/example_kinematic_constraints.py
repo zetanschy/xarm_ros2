@@ -154,10 +154,19 @@ def main():
             logger.info("Planning succeeded!")
             # Execute the plan
             logger.info("Executing trajectory...")
-            xarm_moveit.execute(planning_group, plan_result.trajectory, blocking=True)
-            logger.info("✓ Trajectory executed successfully")
+            try:
+                xarm_moveit.execute(planning_group, plan_result.trajectory, blocking=True)
+                logger.info("✓ Trajectory executed successfully")
+            except Exception as e:
+                logger.warn(f"Execution failed (this may happen with fake controllers): {e}")
+                logger.warn("Continuing with next example...")
         else:
             logger.warn("Planning failed - this is expected if the constraint is infeasible")
+        
+        import time
+        # Wait longer to ensure action client reconnects if needed
+        logger.info("Waiting before next example...")
+        time.sleep(5)
         
         # Example 5: Combining constraints
         logger.info("\n--- Example 5: Combining Multiple Constraints ---")
@@ -165,6 +174,9 @@ def main():
         logger.info("  - Joint constraints: specify exact joint values")
         logger.info("  - Position constraints: specify end-effector position")
         logger.info("  - Orientation constraints: specify end-effector orientation")
+        
+        # Reset start state to current state before planning next trajectory
+        planning_component.set_start_state_to_current_state()
         
         # Create a Constraints message to combine multiple constraints
         combined_constraints_msg = Constraints()
@@ -177,15 +189,19 @@ def main():
         # Wrap position constraint in Constraints message
         planning_component.set_goal_state(motion_plan_constraints=[combined_constraints_msg])
         
-        logger.info("Planning with position constraint...")
+        logger.info("Planning with combined constraints...")
         plan_result = planning_component.plan()
         
         if plan_result:
             logger.info("Planning succeeded!")
             # Execute the plan
             logger.info("Executing trajectory...")
-            xarm_moveit.execute(planning_group, plan_result.trajectory, blocking=True)
-            logger.info("✓ Trajectory executed successfully")
+            try:
+                xarm_moveit.execute(planning_group, plan_result.trajectory, blocking=True)
+                logger.info("✓ Trajectory executed successfully")
+            except Exception as e:
+                logger.warn(f"Execution failed (this may happen with fake controllers): {e}")
+                logger.warn("This is expected when using fake_controllers - the trajectory was planned successfully.")
         else:
             logger.warn("Planning failed - this is expected if the constraint is infeasible")
 
