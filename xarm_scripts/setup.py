@@ -34,6 +34,7 @@ setup(
             'example_advanced_planning = xarm_scripts.example_advanced_planning:main',
             'example_multi_pipeline = xarm_scripts.example_multi_pipeline:main',
             'example_collision = xarm_scripts.example_collision:main',
+            'pick_and_place_beer = xarm_scripts.pick_and_place_beer:main',
         ],
     },
 )
