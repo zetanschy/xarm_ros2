@@ -199,6 +199,12 @@ def launch_setup(context, *args, **kwargs):
                 '/camera/depth/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
                 '/camera/depth/image@sensor_msgs/msg/Image@gz.msgs.Image',
             ])
+        # Add overhead camera bridge when using color objects world
+        if 'color_objects' in world_file:
+            args.extend([
+                '/camera/image_raw@sensor_msgs/msg/Image@gz.msgs.Image',
+                '/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            ])
         gz_bridge = Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',
@@ -260,6 +266,12 @@ def launch_setup(context, *args, **kwargs):
                 '/camera/depth/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked',
                 '/camera/depth/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
                 '/camera/depth/image@sensor_msgs/msg/Image@ignition.msgs.Image',
+            ])
+        # Add overhead camera bridge when using color objects world
+        if 'color_objects' in world_file:
+            args.extend([
+                '/camera/image_raw@sensor_msgs/msg/Image@ignition.msgs.Image',
+                '/camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
             ])
         gz_bridge = Node(
             package='ros_ign_bridge',
