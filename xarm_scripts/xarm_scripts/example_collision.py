@@ -114,7 +114,7 @@ def main():
         collision_object.id = "box1"
         
         # Define the size of the box in meters
-        primitive = SolidPrimitive()
+        primitive = SolidPrimitive() 
         primitive.type = SolidPrimitive.BOX
         primitive.dimensions = [0.2, 0.1, 0.2]  # [BOX_X, BOX_Y, BOX_Z]
         
@@ -123,7 +123,7 @@ def main():
         box_pose.orientation.w = 1.0
         box_pose.position.x = 0.2
         box_pose.position.y = 0.2
-        box_pose.position.z = 0.15#0.25
+        box_pose.position.z = 0.15 # 0.25
         
         collision_object.primitives.append(primitive)
         collision_object.primitive_poses.append(box_pose)
