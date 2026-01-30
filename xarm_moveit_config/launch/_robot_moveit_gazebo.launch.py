@@ -53,6 +53,13 @@ def launch_setup(context, *args, **kwargs):
     geometry_mesh_tcp_rpy = LaunchConfiguration('geometry_mesh_tcp_rpy', default='"0 0 0"')
 
     no_gui_ctrl = LaunchConfiguration('no_gui_ctrl', default=False)
+    
+    # World and robot position parameters
+    world = LaunchConfiguration('world', default='table.world')
+    robot_x = LaunchConfiguration('robot_x', default='-0.2')
+    robot_y = LaunchConfiguration('robot_y', default='-0.5')
+    robot_z = LaunchConfiguration('robot_z', default='1.021')
+    robot_yaw = LaunchConfiguration('robot_yaw', default='1.571')
     ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
 
     gz_type = LaunchConfiguration('gz_type', default='ign').perform(context)
@@ -144,6 +151,11 @@ def launch_setup(context, *args, **kwargs):
             'show_rviz': 'true',
             'no_gui_ctrl': no_gui_ctrl,
             'gz_type': gz_type,
+            'world': world,
+            'robot_x': robot_x,
+            'robot_y': robot_y,
+            'robot_z': robot_z,
+            'robot_yaw': robot_yaw,
         }.items(),
     )
 

@@ -59,6 +59,7 @@ install(TARGETS gazebo_mimic_joint_plugin
 
 install(DIRECTORY
   worlds
+  models
   launch
   DESTINATION share/${PROJECT_NAME}/
 )

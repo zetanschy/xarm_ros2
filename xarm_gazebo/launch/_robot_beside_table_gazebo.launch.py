@@ -8,11 +8,12 @@
 
 import os
 import yaml
+from os import pathsep
 from pathlib import Path
 from ament_index_python import get_package_share_directory
 from launch.launch_description_sources import load_python_launch_file_as_module
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, RegisterEventHandler
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, RegisterEventHandler, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -61,6 +62,13 @@ def launch_setup(context, *args, **kwargs):
     load_controller = LaunchConfiguration('load_controller', default=False)
     show_rviz = LaunchConfiguration('show_rviz', default=False)
     no_gui_ctrl = LaunchConfiguration('no_gui_ctrl', default=False)
+    
+    # World and robot position parameters
+    world = LaunchConfiguration('world', default='table.world')
+    robot_x = LaunchConfiguration('robot_x', default='-0.2')
+    robot_y = LaunchConfiguration('robot_y', default='-0.5')
+    robot_z = LaunchConfiguration('robot_z', default='1.021')
+    robot_yaw = LaunchConfiguration('robot_yaw', default='1.571')
 
     ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
     moveit_config_dump = LaunchConfiguration('moveit_config_dump', default='')
@@ -143,7 +151,11 @@ def launch_setup(context, *args, **kwargs):
     )
 
     if gz_type == 'gz':
-        gazebo_world = PathJoinSubstitution([FindPackageShare('xarm_gazebo'), 'worlds', 'table_gz.world'])
+        # Use world parameter, but default to table_gz.world for gz type if not specified
+        world_file = world.perform(context)
+        if world_file == 'table.world':
+            world_file = 'table_gz.world'
+        gazebo_world = PathJoinSubstitution([FindPackageShare('xarm_gazebo'), 'worlds', world_file])
         # ros_gz_sim/launch/gz_sim.launch.py
         gazebo_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])),
@@ -160,10 +172,10 @@ def launch_setup(context, *args, **kwargs):
                 '-topic', 'robot_description',
                 # '-name', '{}'.format(xarm_type),
                 '-name', 'UF_ROBOT',
-                '-x', '-0.2',
-                '-y', '-0.54' if robot_type.perform(context) == 'uf850' else '-0.5',
-                '-z', '1.021',
-                '-Y', '1.571',
+                '-x', robot_x,
+                '-y', robot_y,
+                '-z', robot_z,
+                '-Y', robot_yaw,
                 # '-allow_renaming', 'true'
             ],
             parameters=[{'use_sim_time': True}],
@@ -196,10 +208,16 @@ def launch_setup(context, *args, **kwargs):
                 # ('/camera/depth/image', '/camera/depth/image_raw'),
             ],
             parameters=[{'use_sim_time': True}],
-            output='screen'
+            output='screen',
+            sigterm_timeout='5',
+            sigkill_timeout='10',
         )
     elif gz_type == 'ignition':
-        gazebo_world = PathJoinSubstitution([FindPackageShare('xarm_gazebo'), 'worlds', 'table_gz.world'])
+        # Use world parameter, but default to table_gz.world for ignition type if not specified
+        world_file = world.perform(context)
+        if world_file == 'table.world':
+            world_file = 'table_gz.world'
+        gazebo_world = PathJoinSubstitution([FindPackageShare('xarm_gazebo'), 'worlds', world_file])
         # ros_ign_gazebo/launch/ign_gazebo.launch.py
         gazebo_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('ros_ign_gazebo'), 'launch', 'ign_gazebo.launch.py'])),
@@ -216,10 +234,10 @@ def launch_setup(context, *args, **kwargs):
                 '-topic', 'robot_description',
                 # '-name', '{}'.format(xarm_type),
                 '-name', 'UF_ROBOT',
-                '-x', '-0.2',
-                '-y', '-0.54' if robot_type.perform(context) == 'uf850' else '-0.5',
-                '-z', '1.021',
-                '-Y', '1.571',
+                '-x', robot_x,
+                '-y', robot_y,
+                '-z', robot_z,
+                '-Y', robot_yaw,
                 # '-allow_renaming', 'true'
             ],
             parameters=[{'use_sim_time': True}],
@@ -251,10 +269,12 @@ def launch_setup(context, *args, **kwargs):
             #     ('/xarm/joint_states', 'joint_states'),
             # ],
             parameters=[{'use_sim_time': True}],
-            output='screen'
+            output='screen',
+            sigterm_timeout='5',
+            sigkill_timeout='10',
         )
     else:
-        gazebo_world = PathJoinSubstitution([FindPackageShare('xarm_gazebo'), 'worlds', 'table.world'])
+        gazebo_world = PathJoinSubstitution([FindPackageShare('xarm_gazebo'), 'worlds', world])
         # gazebo_ros/launch/gazebo.launch.py
         gazebo_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('gazebo_ros'), 'launch', 'gazebo.launch.py'])),
@@ -273,10 +293,10 @@ def launch_setup(context, *args, **kwargs):
                 '-topic', 'robot_description',
                 # '-entity', '{}'.format(xarm_type),
                 '-entity', 'UF_ROBOT',
-                '-x', '-0.2',
-                '-y', '-0.54' if robot_type.perform(context) == 'uf850' else '-0.5',
-                '-z', '1.021',
-                '-Y', '1.571',
+                '-x', robot_x,
+                '-y', robot_y,
+                '-z', robot_z,
+                '-Y', robot_yaw,
             ],
             parameters=[{'use_sim_time': True}],
         )
@@ -354,12 +374,8 @@ def launch_setup(context, *args, **kwargs):
     ]
 
     if gz_type == 'gz' or gz_type == 'ignition':
-        nodes.append(RegisterEventHandler(
-            event_handler=OnProcessStart(
-                target_action=robot_state_publisher_node,
-                on_start=gz_bridge,
-            )
-        ))
+        # Start gz_bridge directly (not via event handler) for proper cleanup
+        nodes.append(gz_bridge)
 
     if len(controller_nodes) > 0:
         nodes.append(RegisterEventHandler(
@@ -373,6 +389,29 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
+    # Set up model paths BEFORE OpaqueFunction runs (following panda_description pattern)
+    # This ensures environment variables are set before gazebo is launched
+    xarm_gazebo_pkg = get_package_share_directory('xarm_gazebo')
+    models_dir = os.path.join(xarm_gazebo_pkg, 'models')
+    
+    # Build model path: parent directory + models directory
+    model_path = str(Path(xarm_gazebo_pkg).parent.resolve())
+    model_path += pathsep + models_dir
+    
+    # SetEnvironmentVariable for GZ_SIM_RESOURCE_PATH (Gazebo Ignition/GZ)
+    gazebo_resource_path = SetEnvironmentVariable(
+        "GZ_SIM_RESOURCE_PATH",
+        model_path
+    )
+    
+    # SetEnvironmentVariable for GAZEBO_MODEL_PATH (Gazebo Classic)
+    gazebo_model_path = SetEnvironmentVariable(
+        "GAZEBO_MODEL_PATH", 
+        model_path
+    )
+    
     return LaunchDescription([
+        gazebo_resource_path,
+        gazebo_model_path,
         OpaqueFunction(function=launch_setup)
     ])
