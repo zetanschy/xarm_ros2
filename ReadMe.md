@@ -77,15 +77,8 @@ Launch simulation:
 ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py
 ```
 
-Launch example script:
+Launch example script. Replace EXAMPLE_NAME with the script filename (e.g. example_joint_goal):
 
 ```bash
-ros2 launch xarm_scripts moveit_py_joint_goal.launch.py
+ros2 launch xarm_scripts xarm_scripts.launch.py script:=EXAMPLE_NAME
 ```
-
-or
-
-```bash
-ros2 launch xarm_scripts moveit_py_pose_goal.launch.py
-```
-
