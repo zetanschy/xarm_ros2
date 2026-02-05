@@ -89,8 +89,8 @@ ros2 launch xarm_scripts color_sorting.launch.py auto_mode:=true
    - `color_sorter.py` funcional con ambos modos (target_color y auto_mode)
 
 2. **Evidencia de funcionamiento:**
-   - Video o captura de pantalla mostrando el sistema funcionando
-   - El video debe mostrar la secuencia completa: R → G → B
+   - Video corto mostrando el sistema funcionando del modo target_color.
+   - Video corto mostrando el sistema funcionando del modo auto.
 
 ## Calificación
 
