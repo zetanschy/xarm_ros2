@@ -5,16 +5,10 @@ Crear un sistema completo de clasificación de cubos de colores que detecte y co
 
 ## Preparaciones
 
-Considera usar ROS2 Humble. Instala las dependencias necesarias:
+Instala las dependencias necesarias:
 
 ```bash
 sudo apt-get install ros-humble-tf-transformations
-```
-
-O si usas otra distribución de ROS2:
-
-```bash
-sudo apt-get install ros-<ros-distro>-tf-transformations
 ```
 
 ## Comandos para Ejecutar
