@@ -65,7 +65,7 @@
         mesh_filename="${visual_dir}/link_base"  
         origin_xyz="0 0 0" 
         origin_rpy="0 0 0"
-        material_name="${prefix}White" />
+        material_name="${prefix}Black" />
       <xacro:common_link_collision 
         mesh_filename="${collision_dir}/link_base" 
         add_mesh_suffix="${add_mesh_suffix}" 
@@ -113,7 +113,7 @@
         mesh_filename="${visual_dir}/link2"  
         origin_xyz="0 0 0" 
         origin_rpy="0 0 0"
-        material_name="${prefix}White" />
+        material_name="${prefix}Black" />
       <xacro:common_link_collision 
         mesh_filename="${collision_dir}/link2"  
         add_mesh_suffix="${add_mesh_suffix}" 
@@ -175,7 +175,7 @@
         mesh_filename="${visual_dir}/link4"  
         origin_xyz="0 0 0" 
         origin_rpy="0 0 0"
-        material_name="${prefix}White" />
+        material_name="${prefix}Black" />
       <xacro:common_link_collision 
         mesh_filename="${collision_dir}/link4"  
         add_mesh_suffix="${add_mesh_suffix}" 
@@ -236,7 +236,7 @@
         mesh_filename="${link6_visual}"  
         origin_xyz="0 0 0" 
         origin_rpy="0 0 0"
-        material_name="${prefix}Silver" />
+        material_name="${prefix}Black" />
       <xacro:common_link_collision 
         mesh_filename="${link6_collision}"  
         add_mesh_suffix="${add_mesh_suffix}" 

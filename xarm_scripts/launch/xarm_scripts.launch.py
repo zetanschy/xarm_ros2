@@ -35,7 +35,7 @@ AVAILABLE_SCRIPTS = [
     "example_transforms",
     "example_advanced_planning",
     "test_pymoveit2_api",
-    "pick_and_place_beer",
+    "pick_and_place",
 ]
 
 

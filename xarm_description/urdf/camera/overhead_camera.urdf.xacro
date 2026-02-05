@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- Overhead Camera Macro - attaches to link_base for TF transforms -->
+  <xacro:macro name="overhead_camera" params="prefix:='' parent_link:='link_base' xyz:='0.6 0 0.8' rpy:='0 0 0'">
+    
+    <!-- Camera Link -->
+    <link name="${prefix}overhead_camera_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.1"/>
+        <inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.1 0.1 0.05"/>
+        </geometry>
+        <material name="red">
+          <color rgba="0.8 0.2 0.2 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.1 0.1 0.05"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Joint attaching camera to parent (link_base) -->
+    <joint name="${prefix}overhead_camera_joint" type="fixed">
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <parent link="${prefix}${parent_link}"/>
+      <child link="${prefix}overhead_camera_link"/>
+    </joint>
+
+    <!-- Optical frame for proper image orientation -->
+    <link name="${prefix}overhead_camera_optical_frame"/>
+
+    <joint name="${prefix}overhead_camera_optical_joint" type="fixed">
+      <parent link="${prefix}overhead_camera_link"/>
+      <child link="${prefix}overhead_camera_optical_frame"/>
+      <!-- Rotate for downward-looking camera: Z down, X forward, Y left -->
+      <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
+    </joint>
+
+  </xacro:macro>
+
+  <!-- Ignition Gazebo RGBD Camera Sensor (with depth) -->
+  <xacro:macro name="overhead_camera_ignition" params="prefix:=''">
+    <gazebo reference="${prefix}overhead_camera_link">
+      <sensor name="${prefix}overhead_camera" type="rgbd_camera">
+        <pose>0 0 0 0 1.5708 0.0</pose>
+        <visualize>true</visualize>
+        <update_rate>10.0</update_rate>
+        <always_on>true</always_on>
+        <topic>camera</topic>
+        <gz_frame_id>${prefix}overhead_camera_optical_frame</gz_frame_id>
+        <camera name="overhead_camera">
+          <horizontal_fov>1.0</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>8.0</far>
+          </clip>
+          <depth_camera>
+            <clip>
+              <near>0.05</near>
+              <far>8.0</far>
+            </clip>
+          </depth_camera>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Gazebo GZ RGBD Camera Sensor (with depth) -->
+  <xacro:macro name="overhead_camera_gz" params="prefix:=''">
+    <gazebo reference="${prefix}overhead_camera_link">
+      <sensor name="${prefix}overhead_camera" type="rgbd_camera">
+        <pose>0 0 0 0 1.5708 0.0</pose>
+        <visualize>true</visualize>
+        <update_rate>10.0</update_rate>
+        <always_on>true</always_on>
+        <topic>camera</topic>
+        <gz_frame_id>${prefix}overhead_camera_optical_frame</gz_frame_id>
+        <camera name="overhead_camera">
+          <horizontal_fov>1.0</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>8.0</far>
+          </clip>
+          <depth_camera>
+            <clip>
+              <near>0.05</near>
+              <far>8.0</far>
+            </clip>
+          </depth_camera>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Gazebo Classic Camera Sensor -->
+  <xacro:macro name="overhead_camera_gazebo" params="prefix:=''">
+    <gazebo reference="${prefix}overhead_camera_link">
+      <material>Gazebo/Red</material>
+    </gazebo>
+    <gazebo reference="${prefix}overhead_camera_link">
+      <sensor type="camera" name="${prefix}overhead_camera">
+        <update_rate>10.0</update_rate>
+        <camera name="overhead_camera">
+          <horizontal_fov>1.0</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>8.0</far>
+          </clip>
+        </camera>
+        <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+          <ros>
+            <namespace>/</namespace>
+            <remapping>image_raw:=camera/image_raw</remapping>
+            <remapping>camera_info:=camera/camera_info</remapping>
+          </ros>
+          <camera_name>camera</camera_name>
+          <frame_name>${prefix}overhead_camera_optical_frame</frame_name>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+</robot>

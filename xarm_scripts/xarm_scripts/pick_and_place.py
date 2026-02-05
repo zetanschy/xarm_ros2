@@ -3,19 +3,17 @@
 import rclpy
 from rclpy.node import Node
 from moveit.planning import MoveItPy, PlanRequestParameters
-from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
-from ament_index_python import get_package_share_directory
-from geometry_msgs.msg import PoseStamped, Pose
-from control_msgs.action import FollowJointTrajectory
-from control_msgs.msg import JointTolerance
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from rclpy.action import ActionClient
+from control_msgs.action import FollowJointTrajectory
 import time
+from geometry_msgs.msg import Pose
 from moveit_msgs.msg import CollisionObject, AttachedCollisionObject
 from shape_msgs.msg import SolidPrimitive
-
-GROUP = "xarm6"
-LINK = "link6"
+from xarm_scripts.moveit_utils import (
+    GROUP, LINK, GRIPPER_CLOSE_POS,
+    setup_moveit_config, set_gripper_state, set_gripper,
+    pose_to_stamped, move_to_pose
+)
 
 # ARM POSITIONS COMPONENTES
 APPROACH_Z = 0.3
@@ -24,101 +22,6 @@ LIFT_Z = 0.4
 START_Y = -0.4
 GOAL_Y = 0.4
 X_LEVEL = -0.3
-
-# GRIPPER POSE
-GRIPPER_CLOSE_POS = 0.5
-
-def setup_moveit_config(node, dof=6, add_gripper=True):
-    if node.has_parameter('use_sim_time'):
-        use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
-    else:
-        node.declare_parameter('use_sim_time', False)
-        use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
-    
-    node.get_logger().info(f"use_sim_time: {use_sim_time}")
-    
-    moveit_config_builder = MoveItConfigsBuilder(
-        context=None,
-        controllers_name='fake_controllers',
-        dof=dof,
-        robot_type='xarm',
-        prefix='',
-        limited=True,
-        add_gripper=add_gripper,
-    )
-    moveit_config_builder.moveit_cpp(
-        file_path=get_package_share_directory("xarm_moveit_config") + "/config/moveit_planning_python.yaml"
-    )
-    moveit_config_dict = moveit_config_builder.to_dict()
-    
-    moveit_config_dict['use_sim_time'] = use_sim_time
-    
-    MoveItConfigsBuilder._add_qos_overrides_for_sim_time(moveit_config_dict)
-    
-    return moveit_config_dict, use_sim_time
-
-def set_gripper_state(xarm_moveit, state_name):
-    gripper = xarm_moveit.get_planning_component("xarm_gripper")
-    gripper.set_start_state_to_current_state()
-    gripper.set_goal_state(configuration_name=state_name)
-    plan_result = gripper.plan()
-    if plan_result:
-        xarm_moveit.execute("xarm_gripper", plan_result.trajectory, blocking=True)
-
-def set_gripper(node, gripper_client, position_rad):
-    goal_msg = FollowJointTrajectory.Goal()
-    trajectory = JointTrajectory()
-    trajectory.joint_names = ['drive_joint']
-    trajectory.header.stamp = node.get_clock().now().to_msg()
-    
-    point = JointTrajectoryPoint()
-    point.positions = [float(position_rad)]
-    point.velocities = [0.0]
-    point.accelerations = [0.0]
-    point.time_from_start.sec = 2
-    trajectory.points = [point]
-    goal_msg.trajectory = trajectory
-    
-    tolerance = JointTolerance()
-    tolerance.name = 'drive_joint'
-    tolerance.position = 0.1
-    goal_msg.path_tolerance = [tolerance]
-    goal_msg.goal_tolerance = [tolerance]
-    goal_msg.goal_time_tolerance.sec = 1
-    
-    send_future = gripper_client.send_goal_async(goal_msg)
-    rclpy.spin_until_future_complete(node, send_future, timeout_sec=5.0)
-    goal_handle = send_future.result()
-    
-    if goal_handle.accepted:
-        result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(node, result_future, timeout_sec=10.0)
-
-def pose_to_stamped(position):
-    pose_goal = PoseStamped()
-    pose_goal.header.frame_id = "link_base"
-    pose_goal.pose.position.x = float(position[0])
-    pose_goal.pose.position.y = float(position[1])
-    pose_goal.pose.position.z = float(position[2])
-    pose_goal.pose.orientation.x = 0.0
-    pose_goal.pose.orientation.y = 1.0
-    pose_goal.pose.orientation.z = 0.0
-    pose_goal.pose.orientation.w = 0.0
-    return pose_goal
-
-def move_to_pose(planning_component, xarm_moveit, group, position, link="link6"):
-    planning_component.set_start_state_to_current_state()
-    
-    pose_goal = pose_to_stamped(position)
-    
-    planning_component.set_goal_state(pose_stamped_msg=pose_goal, pose_link=link)
-    
-    plan_result = planning_component.plan()
-    
-    if plan_result:
-        xarm_moveit.execute(group, plan_result.trajectory, blocking=True)
-        return True
-    return False
 
 def main(args=None):
     rclpy.init(args=args)

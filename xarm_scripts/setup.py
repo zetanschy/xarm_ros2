@@ -35,6 +35,8 @@ setup(
             'example_multi_pipeline = xarm_scripts.example_multi_pipeline:main',
             'example_collision = xarm_scripts.example_collision:main',
             'pick_and_place = xarm_scripts.pick_and_place:main',
+            'color_detector = xarm_scripts.color_detector:main',
+            'color_sorter = xarm_scripts.color_sorter:main',
         ],
     },
 )

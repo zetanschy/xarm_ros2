@@ -69,6 +69,9 @@ def launch_setup(context, *args, **kwargs):
     robot_y = LaunchConfiguration('robot_y', default='-0.5')
     robot_z = LaunchConfiguration('robot_z', default='1.021')
     robot_yaw = LaunchConfiguration('robot_yaw', default='1.571')
+    
+    # Depth camera parameter
+    enable_depth_camera = LaunchConfiguration('enable_depth_camera', default=False)
 
     ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
     moveit_config_dump = LaunchConfiguration('moveit_config_dump', default='')
@@ -201,17 +204,24 @@ def launch_setup(context, *args, **kwargs):
             ])
         # Add overhead camera bridge when using color objects world
         if 'color_objects' in world_file:
+            # rgbd_camera publishes to /camera/image (RGB), /camera/depth_image (depth), /camera/points (point cloud)
             args.extend([
-                '/camera/image_raw@sensor_msgs/msg/Image@gz.msgs.Image',
+                '/camera/image@sensor_msgs/msg/Image@gz.msgs.Image',
                 '/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
             ])
+            # Add depth topics only if explicitly enabled
+            if enable_depth_camera.perform(context) in ('True', 'true'):
+                args.extend([
+                    '/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image',
+                    '/camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
+                ])
         gz_bridge = Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',
             arguments=args,
             remappings=[
-                # ('/world/empty/model/UF_ROBOT/joint_state', 'joint_states'),
-                # ('/camera/depth/image', '/camera/depth/image_raw'),
+                ('/camera/image', '/camera/image_raw'),  # Remap Gazebo /camera/image to ROS /camera/image_raw
+                ('/camera/depth_image', '/camera/depth/image'),  # Remap Gazebo /camera/depth_image to ROS /camera/depth/image
             ],
             parameters=[{'use_sim_time': True}],
             output='screen',
@@ -269,14 +279,25 @@ def launch_setup(context, *args, **kwargs):
             ])
         # Add overhead camera bridge when using color objects world
         if 'color_objects' in world_file:
+            # rgbd_camera publishes to /camera/image (RGB), /camera/depth_image (depth), /camera/points (point cloud)
             args.extend([
-                '/camera/image_raw@sensor_msgs/msg/Image@ignition.msgs.Image',
+                '/camera/image@sensor_msgs/msg/Image@ignition.msgs.Image',
                 '/camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
             ])
+            # Add depth topics only if explicitly enabled
+            if enable_depth_camera.perform(context) in ('True', 'true'):
+                args.extend([
+                    '/camera/depth_image@sensor_msgs/msg/Image@ignition.msgs.Image',
+                    '/camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked',
+                ])
         gz_bridge = Node(
             package='ros_ign_bridge',
             executable='parameter_bridge',
             arguments=args,
+            remappings=[
+                ('/camera/image', '/camera/image_raw'),  # Remap Ignition /camera/image to ROS /camera/image_raw
+                ('/camera/depth_image', '/camera/depth/image'),  # Remap Ignition /camera/depth_image to ROS /camera/depth/image
+            ],
             # remappings=[
             #     ('/xarm/joint_states', 'joint_states'),
             # ],

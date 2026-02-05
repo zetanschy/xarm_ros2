@@ -21,6 +21,9 @@
     add_realsense_d435i:=false
     add_d435i_links:=true
     use_gazebo_camera:=false
+    add_overhead_camera:=false
+    overhead_camera_xyz:='0.3 0 0.8'
+    overhead_camera_rpy:='0 0 0'
     add_other_geometry:=false 
     geometry_type:='box'
     geometry_mass:='0.1'
@@ -231,6 +234,21 @@
     <xacro:unless value="${add_realsense_d435i}">
       <link name="${prefix}link_eef"/>
     </xacro:unless>
+
+    <!-- Overhead Camera (for color sorting, etc.) -->
+    <xacro:if value="${add_overhead_camera}">
+      <xacro:include filename="$(find xarm_description)/urdf/camera/overhead_camera.urdf.xacro" />
+      <xacro:overhead_camera prefix="${prefix}" parent_link="link_base" xyz="${overhead_camera_xyz}" rpy="${overhead_camera_rpy}" />
+      <xacro:if value="${ros2_control_plugin == 'gz_ros2_control/GazeboSimSystem'}">
+        <xacro:overhead_camera_gz prefix="${prefix}" />
+      </xacro:if>
+      <xacro:if value="${ros2_control_plugin == 'ign_ros2_control/IgnitionSystem'}">
+        <xacro:overhead_camera_ignition prefix="${prefix}" />
+      </xacro:if>
+      <xacro:if value="${ros2_control_plugin == 'gazebo_ros2_control/GazeboSystem'}">
+        <xacro:overhead_camera_gazebo prefix="${prefix}" />
+      </xacro:if>
+    </xacro:if>
     <joint name="${prefix}joint_eef" type="fixed">
       <origin xyz="0 0 0" rpy="0 0 0" />
       <parent link="${prefix}link${dof}" />

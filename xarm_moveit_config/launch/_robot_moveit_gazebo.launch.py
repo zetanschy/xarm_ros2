@@ -60,6 +60,14 @@ def launch_setup(context, *args, **kwargs):
     robot_y = LaunchConfiguration('robot_y', default='-0.5')
     robot_z = LaunchConfiguration('robot_z', default='1.021')
     robot_yaw = LaunchConfiguration('robot_yaw', default='1.571')
+    
+    # Depth camera and octomap parameters
+    enable_depth_camera = LaunchConfiguration('enable_depth_camera', default=False)
+    
+    # Get world filename and check if overhead camera should be enabled
+    world_file = world.perform(context)
+    add_overhead_camera = 'true' if 'color_objects' in world_file else 'false'
+    
     ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
 
     gz_type = LaunchConfiguration('gz_type', default='ign').perform(context)
@@ -103,6 +111,7 @@ def launch_setup(context, *args, **kwargs):
         add_bio_gripper=add_bio_gripper,
         add_realsense_d435i=add_realsense_d435i,
         add_d435i_links=add_d435i_links,
+        add_overhead_camera=add_overhead_camera,
         add_other_geometry=add_other_geometry,
         geometry_type=geometry_type,
         geometry_mass=geometry_mass,
@@ -118,7 +127,14 @@ def launch_setup(context, *args, **kwargs):
     ).planning_scene_monitor(
         publish_robot_description=True,  # Required for MoveItPy Python API
         publish_robot_description_semantic=True,  # Required for MoveItPy Python API
-    ).to_moveit_configs()
+    )
+    
+    # Add sensors_3d configuration for octomap when depth camera is explicitly enabled
+    enable_depth_value = enable_depth_camera.perform(context) if context else 'false'
+    if enable_depth_value in ('True', 'true'):
+        moveit_config = moveit_config.sensors_3d()
+    
+    moveit_config = moveit_config.to_moveit_configs()
 
     moveit_config_dump = yaml.dump(moveit_config.to_dict())
 
@@ -156,6 +172,7 @@ def launch_setup(context, *args, **kwargs):
             'robot_y': robot_y,
             'robot_z': robot_z,
             'robot_yaw': robot_yaw,
+            'enable_depth_camera': enable_depth_camera,
         }.items(),
     )
 

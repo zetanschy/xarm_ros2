@@ -8,9 +8,6 @@ This repository contains simulation models, and corresponding motion planning an
 
 ## Preparation
 
-### Color world
-ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py robot_x:=0.0 robot_y:=-0.4 robot_z:=0.45 robot_yaw:=1.5708 world:=table_color_objects.world add_gripper:=true
-
 ### Install Dependencies
 
 ```bash

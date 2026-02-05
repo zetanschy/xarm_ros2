@@ -259,6 +259,9 @@ class MoveItConfigsBuilder(ParameterBuilder):
         add_realsense_d435i = get_param_str('add_realsense_d435i', False)
         add_d435i_links = get_param_str('add_d435i_links', True)
         use_gazebo_camera = get_param_str('use_gazebo_camera', False)
+        add_overhead_camera = get_param_str('add_overhead_camera', False)
+        overhead_camera_xyz = get_param_str('overhead_camera_xyz', '0.3 0 0.8')
+        overhead_camera_rpy = get_param_str('overhead_camera_rpy', '0 0 0')
         add_other_geometry = get_param_str('add_other_geometry', False)
         geometry_type = get_param_str('geometry_type', 'box')
         geometry_mass = get_param_str('geometry_mass', 0.1)
@@ -306,6 +309,9 @@ class MoveItConfigsBuilder(ParameterBuilder):
             'add_realsense_d435i': add_realsense_d435i,
             'add_d435i_links': add_d435i_links,
             'use_gazebo_camera': use_gazebo_camera,
+            'add_overhead_camera': add_overhead_camera,
+            'overhead_camera_xyz': overhead_camera_xyz,
+            'overhead_camera_rpy': overhead_camera_rpy,
             'add_other_geometry': add_other_geometry,
             'geometry_type': geometry_type,
             'geometry_mass': geometry_mass,
