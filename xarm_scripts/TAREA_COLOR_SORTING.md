@@ -1,9 +1,21 @@
 # Tarea: Clasificación de Colores con Robot
 
 ## Objetivo
-Crear un sistema completo de clasificación de cubos de colores que detecte y coloque todos los cubos en el bote en el orden **R (Rojo), G (Verde), B (Azul)**. El sistema debe consistir en:
-1. Un script `color_sorter.py` que controle el robot
-2. Un archivo launch que ejecute simultáneamente `color_detector` y `color_sorter`
+Crear un sistema completo de clasificación de cubos de colores que detecte y coloque todos los cubos en el bote en el orden **R (Rojo), G (Verde), B (Azul)**. Debes crear el script `color_sorter.py` que controle el robot. El archivo launch (`color_sorting.launch.py`) ya está proporcionado.
+
+## Preparaciones
+
+Considera usar ROS2 Humble. Instala las dependencias necesarias:
+
+```bash
+sudo apt-get install ros-humble-tf-transformations
+```
+
+O si usas otra distribución de ROS2:
+
+```bash
+sudo apt-get install ros-<ros-distro>-tf-transformations
+```
 
 ## Comandos para Ejecutar
 
@@ -78,67 +90,17 @@ El modo `auto_mode` debe:
 ros2 launch xarm_scripts color_sorting.launch.py auto_mode:=true
 ```
 
-### Crear el Launch File
-
-Debes crear un archivo launch (`color_sorting.launch.py`) que:
-
-1. **Ejecute `color_detector`** como un nodo
-2. **Ejecute `color_sorter`** como otro nodo
-3. Ambos nodos deben ejecutarse simultáneamente
-4. Pasar los parámetros `target_color` y `auto_mode` al nodo `color_sorter`
-
-Ejemplo de estructura:
-```python
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
-
-def generate_launch_description():
-    target_color_arg = DeclareLaunchArgument(
-        'target_color',
-        default_value='',
-        description='Target color to pick (R/G/B). Empty for auto mode'
-    )
-    
-    auto_mode_arg = DeclareLaunchArgument(
-        'auto_mode',
-        default_value='false',
-        description='Auto mode: pick all colors in R-G-B order'
-    )
-    
-    color_detector_node = Node(
-        package='xarm_scripts',
-        executable='color_detector',
-        name='color_detector',
-        output='screen'
-    )
-    
-    color_sorter_node = Node(
-        package='xarm_scripts',
-        executable='color_sorter',
-        name='color_sorter',
-        output='screen',
-        parameters=[{
-            'target_color': LaunchConfiguration('target_color'),
-            'auto_mode': LaunchConfiguration('auto_mode'),
-        }]
-    )
-    
-    return LaunchDescription([
-        target_color_arg,
-        auto_mode_arg,
-        color_detector_node,
-        color_sorter_node,
-    ])
-```
-
 ## Entregables
 
 1. **Código completo:**
    - `color_sorter.py` funcional con ambos modos (target_color y auto_mode)
-   - Archivo launch que ejecute ambos nodos
 
 2. **Evidencia de funcionamiento:**
    - Video o captura de pantalla mostrando el sistema funcionando
    - El video debe mostrar la secuencia completa: R → G → B
+
+## Calificación
+
+- **`target_color`**: 14 puntos
+- **`auto_mode`**: 6 puntos
+- **Total**: 20 puntos
