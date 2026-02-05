@@ -61,7 +61,6 @@ Estas coordenadas están en el marco de referencia `link_base`
 7. Mover hacia el bote
 8. Bajar a la posición de colocación
 9. Abrir gripper (soltar)
-10. Retraerse
 
 **Prueba individualmente cada color:**
 ```bash
