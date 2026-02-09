@@ -39,6 +39,7 @@ setup(
             'pickplace_mtc_planning = xarm_scripts.pickplace_mtc_planning:main',
             'pickplace_mtc_gazebo = xarm_scripts.pickplace_mtc_gazebo:main',
             'pickplace_project_final = xarm_scripts.pickplace_project_final:main',
+            'example_gemini_detection = xarm_scripts.example_gemini_detection:main',
             'color_detector = xarm_scripts.color_detector:main',
             'color_sorter = xarm_scripts.color_sorter:main',
         ],

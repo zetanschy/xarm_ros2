@@ -166,7 +166,26 @@ BASKET_Z = 0.5  # Altura de colocación
 
 ## Ejecución
 
-Una vez que la simulación esté corriendo:
+### Script de Ejemplo: Detección con Gemini
+
+Para probar solo la detección y conversión 2D→3D sin ejecutar el pick-and-place, puedes usar el script de ejemplo:
+
+```bash
+# En una terminal, asegúrate de que Gazebo y MoveIt estén corriendo (ver Paso 1 arriba)
+
+# En otra terminal, ejecuta el script de ejemplo:
+ros2 launch xarm_scripts xarm_scripts.launch.py script:=example_gemini_detection use_sim_time:=true
+```
+
+Este script:
+- Lee una imagen de `/camera/image_raw`
+- Usa Gemini para detectar el cubo defectuoso
+- Convierte las coordenadas de píxel a 3D
+- Imprime la posición 3D del cubo defectuoso en el frame `link_base`
+
+### Script Completo: Pick and Place
+
+Una vez que la simulación esté corriendo, ejecuta el script completo:
 
 ```bash
 ros2 launch xarm_scripts pickplace_mtc_gazebo_project_final.launch.py

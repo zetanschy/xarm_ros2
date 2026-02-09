@@ -37,6 +37,7 @@ AVAILABLE_SCRIPTS = [
     "test_pymoveit2_api",
     "pick_and_place",
     "pickplace_mtc",
+    "example_gemini_detection",
 ]
 
 
