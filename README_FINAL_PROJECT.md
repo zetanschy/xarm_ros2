@@ -202,3 +202,11 @@ O ejecutar directamente el script:
 ros2 run xarm_scripts pickplace_project_final --ros-args -p use_sim_time:=true
 ```
 
+## Entregables
+
+1. **Código completo:**
+   - `pickplace_project_final.py` funcional
+
+2. **Evidencia de funcionamiento:**
+   - Grabación corta de pantalla visualizándose gazebo, rviz con el comportamiento requerido.
+
