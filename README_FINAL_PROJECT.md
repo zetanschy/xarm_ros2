@@ -28,6 +28,28 @@ La idea es que Gemini funcione como un "planificador de alto nivel" que decide q
 
 ## Configuración Inicial
 
+### Instalar google-genai
+```bash
+pip install -U -q google-genai
+```
+
+### Script de Ejemplo: Detección con Gemini
+
+Para probar solo la detección y conversión 2D→3D sin ejecutar el pick-and-place, puedes usar el script de ejemplo:
+
+```bash
+# En una terminal, asegúrate de que Gazebo y MoveIt estén corriendo (ver Paso 1 arriba)
+
+# En otra terminal, ejecuta el script de ejemplo:
+ros2 launch xarm_scripts xarm_scripts.launch.py script:=example_gemini_detection use_sim_time:=true
+```
+
+Este script:
+- Lee una imagen de `/camera/image_raw`
+- Usa Gemini para detectar el cubo defectuoso
+- Convierte las coordenadas de píxel a 3D
+- Imprime la posición 3D del cubo defectuoso en el frame `link_base`
+
 ### Iniciar la Simulación
 
 Antes de ejecutar el script principal, debes iniciar la simulación de Gazebo con MoveIt:
@@ -165,23 +187,6 @@ BASKET_Z = 0.5  # Altura de colocación
 **Nota**: Si Gemini detecta el basket, usa la posición detectada en lugar de estas constantes.
 
 ## Ejecución
-
-### Script de Ejemplo: Detección con Gemini
-
-Para probar solo la detección y conversión 2D→3D sin ejecutar el pick-and-place, puedes usar el script de ejemplo:
-
-```bash
-# En una terminal, asegúrate de que Gazebo y MoveIt estén corriendo (ver Paso 1 arriba)
-
-# En otra terminal, ejecuta el script de ejemplo:
-ros2 launch xarm_scripts xarm_scripts.launch.py script:=example_gemini_detection use_sim_time:=true
-```
-
-Este script:
-- Lee una imagen de `/camera/image_raw`
-- Usa Gemini para detectar el cubo defectuoso
-- Convierte las coordenadas de píxel a 3D
-- Imprime la posición 3D del cubo defectuoso en el frame `link_base`
 
 ### Script Completo: Pick and Place
 
