@@ -28,9 +28,19 @@ La idea es que Gemini funcione como un "planificador de alto nivel" que decide q
 
 ## Configuración Inicial
 
-### Instalar google-genai
+### Paquetes necesarios
 ```bash
+sudo apt install ros-humble-tf-transformations
+sudo apt install ros-humble-py-binding-tools
 pip install -U -q google-genai
+```
+
+[OPCIONAL] Si piensas usar Moveit Task Constructor, requerirás instalarlo en tu workspace:
+```bash
+cd src
+git clone -b humble https://github.com/moveit/moveit_task_constructor.git
+cd ..
+colcon build
 ```
 
 ### Script de Ejemplo: Detección con Gemini

@@ -26,6 +26,7 @@ sudo apt install ros-humble-ros-ign-bridge
 sudo apt install ros-humble-ros-ign-gazebo
 sudo apt install ros-humble-ign-ros2-control
 sudo apt install ros-humble-tf-transformations
+sudo apt install ros-humble-py-binding-tools
 sudo apt update
 sudo apt dist-upgrade
 rosdep update
