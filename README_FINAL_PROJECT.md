@@ -4,10 +4,7 @@
   <table>
     <tr>
       <td align="center">
-        <video width="400" controls>
-          <source src="media/final_project_fabricum.mp4" type="video/mp4">
-          Tu navegador no soporta el tag de video.
-        </video>
+        <img src="media/final_project_fabricum.gif" alt="Video Demostrativo" width="400">
       </td>
       <td align="center">
         <img src="media/diagram.png" alt="Diagrama del Proyecto" width="370">
