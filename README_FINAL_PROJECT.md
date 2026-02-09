@@ -32,7 +32,7 @@ La idea es que Gemini funcione como un "planificador de alto nivel" que decide q
 ```bash
 sudo apt install ros-humble-tf-transformations
 sudo apt install ros-humble-py-binding-tools
-pip install -U -q google-genai
+pip install google-genai
 ```
 
 [OPCIONAL] Si piensas usar Moveit Task Constructor, requerirás instalarlo en tu workspace:
