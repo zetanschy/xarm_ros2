@@ -25,6 +25,7 @@ sudo apt install -y \
 sudo apt install ros-humble-ros-ign-bridge
 sudo apt install ros-humble-ros-ign-gazebo
 sudo apt install ros-humble-ign-ros2-control
+sudo apt install ros-humble-tf-transformations
 sudo apt update
 sudo apt dist-upgrade
 rosdep update
@@ -78,4 +79,37 @@ Launch example script. Replace EXAMPLE_NAME with the script filename (e.g. examp
 
 ```bash
 ros2 launch xarm_scripts xarm_scripts.launch.py script:=EXAMPLE_NAME
+```
+
+### Pick and Place - Classic Example
+
+Launch simulation:
+
+```bash
+ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py add_gripper:=true
+```
+
+Launch pick and place example script.
+
+```bash
+ros2 launch xarm_scripts xarm_scripts.launch.py script:=pick_and_place
+```
+
+### Pick and Place - MTC Example
+
+[EXTRA] Debug planning solutions:
+```bash
+ros2 launch xarm_scripts pickplace_mtc_planning.launch.py
+```
+
+Launch simulation with gripper and world with colored cubes:
+
+```bash
+ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py robot_x:=0.0 robot_y:=-0.4 robot_z:=0.45 robot_yaw:=1.5708 world:=table_color_objects.world add_gripper:=true
+```
+
+Launch example script, it places red cube in the trash bin.
+
+```bash
+ros2 launch xarm_scripts pickplace_mtc_gazebo_colored.launch.py pick_x:=0.606 pick_y:=0.203
 ```

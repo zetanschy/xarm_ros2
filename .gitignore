@@ -8,3 +8,5 @@ xarm_description/config/kinematics/user
 *.py[cod]
 files__pycache__/
 xarm_scripts/xarm_scripts/color_sorter.py
+xarm_scripts/xarm_scripts/pickplace_project_final.py
+xarm_scripts/xarm_scripts/pickplace_mtc_project.py

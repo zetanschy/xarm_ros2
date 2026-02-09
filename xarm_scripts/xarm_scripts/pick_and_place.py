@@ -23,6 +23,7 @@ START_Y = -0.4
 GOAL_Y = 0.4
 X_LEVEL = -0.3
 
+
 def main(args=None):
     rclpy.init(args=args)
     node = Node("pick_and_place")

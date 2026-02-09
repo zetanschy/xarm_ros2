@@ -43,6 +43,12 @@ def launch_setup(context, *args, **kwargs):
         parameters=[
             moveit_config_dict,
             {'use_sim_time': use_sim_time},
+            {'capabilities': 'move_group/ExecuteTaskSolutionCapability'},
+            # Override allowed_start_tolerance to 0.0 to prevent MoveIt from
+            # prepending the current state (t=0) to trajectories that also
+            # start at t=0, which causes duplicate timestamps rejected by
+            # ros2_control's JointTrajectoryController.
+            {'trajectory_execution.allowed_start_tolerance': 0.0},
         ],
     )
 

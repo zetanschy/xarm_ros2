@@ -36,6 +36,7 @@ AVAILABLE_SCRIPTS = [
     "example_advanced_planning",
     "test_pymoveit2_api",
     "pick_and_place",
+    "pickplace_mtc",
 ]
 
 

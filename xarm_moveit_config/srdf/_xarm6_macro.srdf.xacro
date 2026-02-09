@@ -75,6 +75,9 @@
       <group_state name="close" group="${prefix}xarm_gripper">
         <joint name="${prefix}drive_joint" value="0.85" />
       </group_state>
+      <group_state name="grasp" group="${prefix}xarm_gripper">
+        <joint name="${prefix}drive_joint" value="0.5" />
+      </group_state>
       <!-- END EFFECTOR, Purpose, Represent information about an end effector. -->
       <end_effector name="${prefix}xarm_gripper" parent_link="${prefix}link_tcp" group="${prefix}xarm_gripper" />
       <!--PASSIVE JOINT, Purpose, this element is used to mark joints that are not actuated-->

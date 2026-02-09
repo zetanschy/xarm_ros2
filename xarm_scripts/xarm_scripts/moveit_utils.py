@@ -15,6 +15,7 @@ from control_msgs.action import FollowJointTrajectory
 from control_msgs.msg import JointTolerance
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from rclpy.action import ActionClient
+from moveit_msgs.srv import GetPlanningScene
 import numpy as np
 
 # Common constants
@@ -203,16 +204,32 @@ def set_gripper(node, gripper_client, position_rad):
         gripper_client: ActionClient for gripper control
         position_rad: Gripper position in radians
     """
+    from rclpy.time import Time
+    
     goal_msg = FollowJointTrajectory.Goal()
     trajectory = JointTrajectory()
     trajectory.joint_names = ['drive_joint']
-    trajectory.header.stamp = node.get_clock().now().to_msg()
+    
+    # For simulation, use Time(0) to let the controller use current time when received
+    # For real hardware, use current time
+    # Check if using sim time
+    use_sim_time = False
+    if node.has_parameter('use_sim_time'):
+        use_sim_time = node.get_parameter('use_sim_time').get_parameter_value().bool_value
+    
+    if use_sim_time:
+        # Use Time(0) for simulation - controller will use current sim time when received
+        trajectory.header.stamp = Time(seconds=0, nanoseconds=0).to_msg()
+    else:
+        # Use current time for real hardware
+        trajectory.header.stamp = node.get_clock().now().to_msg()
     
     point = JointTrajectoryPoint()
     point.positions = [float(position_rad)]
     point.velocities = [0.0]
     point.accelerations = [0.0]
-    point.time_from_start.sec = 2
+    point.time_from_start.sec = 1  # Reduced from 2 to 1 second
+    point.time_from_start.nanosec = 0
     trajectory.points = [point]
     goal_msg.trajectory = trajectory
     
