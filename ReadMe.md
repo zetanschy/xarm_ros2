@@ -98,6 +98,8 @@ ros2 launch xarm_scripts xarm_scripts.launch.py script:=pick_and_place
 
 ### Pick and Place - MTC Example
 
+Please refer to README_FINAL_PROJECT.md for instructions to install MTC package.
+
 [EXTRA] Debug planning solutions:
 ```bash
 ros2 launch xarm_scripts pickplace_mtc_planning.launch.py
