@@ -10,6 +10,11 @@ from cv_bridge import CvBridge
 import tf2_ros
 import tf_transformations
 
+# Area minima del contorno en pixeles. Con un umbral de 1 px cualquier pixel
+# suelto se publica como cubo y /color_coordinates se llena de ruido.
+MIN_CONTOUR_AREA = 150
+
+
 class ColorDetector(Node):
     def __init__(self):
         super().__init__('color_detector')
@@ -67,7 +72,7 @@ class ColorDetector(Node):
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             for cnt in contours:
-                if cv2.contourArea(cnt) > 1:  # Increased minimum area threshold
+                if cv2.contourArea(cnt) > MIN_CONTOUR_AREA:
                     x, y, w, h = cv2.boundingRect(cnt)
                     cx_pix, cy_pix = x + w // 2, y + h // 2
 
@@ -82,7 +87,7 @@ class ColorDetector(Node):
                     X = (cy_pix - self.cy) * Z / self.fy
 
                     try:
-                        # Lookup transform camera_link -> panda_link0
+                        # Lookup transform overhead_camera_link -> link_base
                         # Use Time(seconds=0) for latest available transform
                         t = self.tf_buffer.lookup_transform(
                             "link_base", 
@@ -112,10 +117,10 @@ class ColorDetector(Node):
                         pt_cam = np.array([X, Y, Z, 1.0])
                         pt_base = T @ pt_cam
 
-                        # Publish color ID + coordinates in panda_link0 frame
+                        # Publish color ID + coordinates in link_base frame
                         msg_str = f"{color_id},{pt_base[0]:.3f},{pt_base[1]:.3f},{pt_base[2]:.3f}"
                         self.coords_pub.publish(String(data=msg_str))
-                        # self.get_logger().info(msg_str)
+                        self.get_logger().info(msg_str)
                         
                     except (tf2_ros.LookupException, 
                             tf2_ros.ConnectivityException, 

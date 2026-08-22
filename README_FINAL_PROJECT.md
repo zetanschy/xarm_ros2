@@ -35,6 +35,19 @@ sudo apt install ros-humble-py-binding-tools
 pip install google-genai
 ```
 
+### API Key de Gemini
+
+Consigue una API key en Google AI Studio y exportala como variable de entorno
+(en la misma terminal donde vas a correr los scripts):
+
+```bash
+export GEMINI_API_KEY="tu-api-key"
+```
+
+Los scripts la leen con `os.environ.get("GEMINI_API_KEY", "")`. No la escribas
+dentro del archivo `.py`: esos archivos estan versionados y la key terminaria
+publicada en el repo.
+
 [OPCIONAL] Si piensas usar Moveit Task Constructor, requerirás instalarlo en tu workspace:
 ```bash
 cd src

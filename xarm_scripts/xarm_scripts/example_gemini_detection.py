@@ -13,6 +13,7 @@ Usage:
     ros2 launch xarm_scripts xarm_scripts.launch.py script:=example_gemini_detection use_sim_time:=true
 """
 
+import os
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image as RosImage
@@ -32,7 +33,11 @@ from google.genai import types
 import textwrap
 
 MODEL_ID = "gemini-robotics-er-1.5-preview"
-API_KEY = #COMPLETE THE API KEY HERE
+
+# Pon tu API key de Google AI Studio en la variable de entorno GEMINI_API_KEY:
+#     export GEMINI_API_KEY="tu-api-key"
+# No la escribas aqui: este archivo esta versionado y la key terminaria en el repo.
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 
 def get_image_from_topic(node: Node, topic: str, timeout_sec: float = 5.0):
@@ -223,6 +228,10 @@ def main(args=None):
         )
         
         start_time = time.time()
+        if not API_KEY:
+            node.get_logger().error(
+                "GEMINI_API_KEY no esta definida. Corre: export GEMINI_API_KEY=\"tu-api-key\"")
+            return
         client = genai.Client(api_key=API_KEY)
         json_output = call_gemini_robotics_er(client, img_pil, prompt, config)
         processing_time = time.time() - start_time
