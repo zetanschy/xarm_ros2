@@ -33,7 +33,18 @@ X_LEVEL = -0.3
 # resultado es que el planner no veia el cubo y lo pasaba por dentro de los
 # obstaculos.
 TCP_OFFSET_Z = 0.172
-PICKED_OBJECT_SIZE = [0.05, 0.05, 0.1]
+# Mismas medidas que small_box en table_gz.world (0.04 x 0.04 x 0.1). Antes eran
+# 0.05 x 0.05, un 25% mas anchas que el cubo real, lo que bloquea planes validos.
+# El margen de seguridad lo agrega MoveIt con su propio padding.
+PICKED_OBJECT_SIZE = [0.04, 0.04, 0.1]
+
+# OBSTACULO
+# Mismas medidas y pose que el modelo "obstacle" de table_gz.world, expresadas en
+# link_base. En el mundo esta en (-0.7, -0.5, 1.15) con tamano 0.5 x 0.04 x 0.3;
+# con link_base en (-0.2, -0.5, 1.021) y yaw 1.571 eso da (0.0, 0.5, 0.129) y el
+# tamano rota a 0.04 x 0.5 x 0.3.
+OBSTACLE_SIZE = [0.04, 0.5, 0.3]
+OBSTACLE_POS = [0.0, 0.5, 0.129]
 
 
 def main(args=None):
@@ -100,13 +111,13 @@ def main(args=None):
     
     primitive = SolidPrimitive()
     primitive.type = SolidPrimitive.BOX
-    primitive.dimensions = [0.04, 0.5, 0.35]
+    primitive.dimensions = OBSTACLE_SIZE
     
     box_pose = Pose() # Define the pose of the box (relative to the frame_id)
     box_pose.orientation.w = 1.0
-    box_pose.position.x = 0.0
-    box_pose.position.y = 0.5
-    box_pose.position.z = 0.15
+    box_pose.position.x = OBSTACLE_POS[0]
+    box_pose.position.y = OBSTACLE_POS[1]
+    box_pose.position.z = OBSTACLE_POS[2]
     
     collision_object.primitives.append(primitive)
     collision_object.primitive_poses.append(box_pose)

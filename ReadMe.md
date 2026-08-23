@@ -84,10 +84,13 @@ ros2 launch xarm_scripts xarm_scripts.launch.py script:=EXAMPLE_NAME
 
 ### Pick and Place - Classic Example
 
-Launch simulation:
+Launch simulation. `world:=table_gz.world` is required: the default `table.world`
+contains only the ground, the sun and the table, so there is no cube to pick and
+no obstacle to avoid.
 
 ```bash
-ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py add_gripper:=true
+ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py \
+  world:=table_gz.world add_gripper:=true
 ```
 
 Launch pick and place example script.
