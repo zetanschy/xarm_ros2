@@ -217,8 +217,20 @@ class HybridPlanningDemo(Node):
         # esto en decenas de ms) antes de que llegue el evento siguiente.
         request.num_planning_attempts = 1
         request.allowed_planning_time = 0.5
+        # 0.4 y no menos, a proposito. Bajarlo suaviza el movimiento pero ROMPE
+        # la demo: con 0.15 el siguiente waypoint queda siempre tan cerca del
+        # estado actual que isPathValid nunca lo encuentra en colision, asi que
+        # stop_before_collision no dispara nunca (medido: 0 "Collision ahead" en
+        # dos corridas) y el brazo llega a la meta sin reaccionar a nada. Ver
+        # HYBRID_PLANNING.md, "Por que el movimiento se ve raro".
         request.max_velocity_scaling_factor = 0.4
         request.max_acceleration_scaling_factor = 0.4
+
+        # No se define workspace_parameters, asi que OMPL avisa "It looks like the
+        # planning volume was not specified" y usa su espacio por defecto. Se probo
+        # acotarlo: el aviso desaparece pero no cambio el comportamiento de la demo
+        # (lo que la rompia era el escalado de velocidad, no esto). Se deja sin
+        # definir para no agregar numeros que no hacen falta.
 
         constraints = Constraints()
         for name, position in zip(JOINT_NAMES, joints):

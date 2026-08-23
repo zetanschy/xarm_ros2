@@ -242,6 +242,51 @@ Un candidato sirve si cumple las tres:
 Las tres se pueden verificar sin mover el robot, con `/check_state_validity` y
 `/plan_kinematic_path`, que es mucho más rápido que correr la demo entera.
 
+### Por qué el movimiento se ve raro
+
+Se frena en seco, arranca, cambia de dirección y a veces va a tirones. Cuatro
+causas, todas identificadas en los logs y en el código de MoveIt. Las dos
+primeras son **el comportamiento correcto**, no fallas:
+
+**1. Se frena en seco durante ~1.7 s.** Cuando aparecen las placas, el local
+planner deja de avanzar y mantiene la posición (`Collision ahead, holding current
+position`, decenas de veces) mientras el manager pide planes nuevos. Eso es
+literalmente `stop_before_collision: true` haciendo su trabajo: el brazo no sigue
+hacia un obstáculo, se queda quieto hasta tener una ruta válida.
+
+**2. Cambia de dirección entre replanificaciones.** Cada plan global es una
+solución nueva de RRTConnect, que es aleatorizado. Si el brazo alcanza a moverse
+un poco con el plan N y después llega el plan N+1 por otra ruta, se ve como una
+corrección brusca. Con 3-4 replanificaciones seguidas, se ven 3-4 correcciones.
+
+**3. La temporización de la trayectoria no se respeta.** Esta es la que más
+sorprende. `ForwardTrajectory` le pasa al controlador **el siguiente waypoint** que
+le da `SimpleSampler`, y el `JointGroupPositionController` escribe esa posición tal
+cual: **no interpola**. Así que el perfil de velocidad que calculó el planner no se
+usa; la velocidad real sale de qué tan espaciados quedaron los waypoints y de qué
+tan rápido el sampler avanza el índice. El demo del Panda de MoveIt tiene la misma
+propiedad.
+
+**4. Dos avisos que dejan los planes más gruesos.** `Cannot find planning
+configuration for group 'xarm6'` (este repo no define `planner_configs` en ningún
+`ompl_planning.yaml`, así que no hay `longest_valid_segment_fraction` propio) y
+`Joint acceleration limits are not defined. Using the default 1 rad/s^2` (los
+límites sí están en `joint_limits.yaml` pero no llegan al time parameterization del
+global planner). Los dos hacen que las trayectorias salgan menos finas.
+
+#### Lo que NO conviene hacer: bajar el escalado de velocidad
+
+Parece la solución obvia y **rompe la demo**. Con
+`max_velocity_scaling_factor = 0.15` el movimiento sale mucho más parejo, pero el
+siguiente waypoint queda siempre tan cerca del estado actual que `isPathValid`
+nunca lo encuentra en colisión: `stop_before_collision` no dispara nunca. Medido:
+**0** `Collision ahead` en dos corridas, y el brazo llega a la meta sin reaccionar
+a nada. La demo pasa a no demostrar nada.
+
+Por eso el valor queda en `0.4`. Si se quiere movimiento más suave sin perder la
+reacción, hay que atacar la causa 3 (que el controlador respete la temporización),
+no bajar la velocidad.
+
 ### Relanzar el ejemplo
 
 Ctrl-C en la terminal 2 y volver a lanzar. El launch mata a sus propios hijos,
