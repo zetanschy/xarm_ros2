@@ -242,6 +242,48 @@ Un candidato sirve si cumple las tres:
 Las tres se pueden verificar sin mover el robot, con `/check_state_validity` y
 `/plan_kinematic_path`, que es mucho más rápido que correr la demo entera.
 
+### Relanzar el ejemplo
+
+Ctrl-C en la terminal 2 y volver a lanzar. El launch mata a sus propios hijos,
+pero si quedó algo colgado:
+
+```bash
+pkill -9 -f component_container_mt
+pkill -9 -f hybrid_planning_demo
+```
+
+Matar **los dos**. Si queda vivo el demo de la corrida anterior, la siguiente
+tiene dos nodos con el mismo nombre sobre la misma acción y el resultado no tiene
+sentido (se reconoce por el warning `Publisher already registered for provided
+node name`).
+
+El paso que cambia los controladores es idempotente: si el
+`xarm6_joint_group_position_controller` ya está cargado lo reactiva en vez de
+fallar. En el log se ve `position controller ya cargado; se reactiva`.
+
+### Si el contenedor se cae con SIGSEGV
+
+Se vio una vez un `component_container_mt ... exit code -11` alrededor de un
+segundo después de aceptar la meta. No se pudo reproducir en 6 corridas
+posteriores, así que por ahora queda como intermitente y sin diagnóstico.
+
+Para que la próxima vez deje algo utilizable, instalar el handler de señales que
+imprime el stack trace:
+
+```bash
+sudo apt install ros-humble-backward-ros
+```
+
+Con eso, un crash en cualquier nodo de MoveIt escribe el backtrace en
+`~/.ros/log/<timestamp>/`. Sin él, el directorio del launch sólo tiene
+`launch.log` con la línea `process has died` y nada más — que es exactamente lo
+que pasó.
+
+El container hospeda los tres componentes, así que un SIGSEGV se lleva los tres.
+Si molesta para depurar, se pueden lanzar como nodos separados en vez de
+componibles (a costa de latencia de IPC en el lazo del local planner, que es la
+razón por la que MoveIt los compone).
+
 ### Otras cosas conocidas
 
 - `Cannot find planning configuration for group 'xarm6' using planner 'RRTConnect'`

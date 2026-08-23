@@ -157,16 +157,30 @@ def launch_setup(context, *args, **kwargs):
         get_package_share_directory('xarm_scripts'),
         'config', 'hybrid_planning', 'xarm6_position_controller.yaml')
 
+    # Idempotente a proposito: si el ejemplo se relanza sin reiniciar Gazebo, el
+    # controlador de posicion ya esta cargado y el spawner falla con exit 1. En ese
+    # caso basta con reactivarlo. Siempre termina con exit 0 para no ensuciar el
+    # log del launch con un proceso muerto.
     switch_to_position_control = ExecuteProcess(
         cmd=[
             'bash', '-c',
+            'CM=/controller_manager; '
             'ros2 control set_controller_state xarm6_traj_controller inactive '
-            '  --controller-manager /controller_manager || true; '
-            'ros2 run controller_manager spawner '
-            '  xarm6_joint_group_position_controller '
-            '  --controller-manager /controller_manager '
-            '  --controller-type position_controllers/JointGroupPositionController '
-            '  --param-file ' + position_controller_params,
+            '  --controller-manager $CM > /dev/null 2>&1 || true; '
+            'if ros2 control list_controllers --controller-manager $CM 2>/dev/null '
+            '     | grep -q xarm6_joint_group_position_controller; then '
+            '  echo "position controller ya cargado; se reactiva"; '
+            '  ros2 control set_controller_state '
+            '    xarm6_joint_group_position_controller active '
+            '    --controller-manager $CM > /dev/null 2>&1 || true; '
+            'else '
+            '  ros2 run controller_manager spawner '
+            '    xarm6_joint_group_position_controller '
+            '    --controller-manager $CM '
+            '    --controller-type position_controllers/JointGroupPositionController '
+            '    --param-file ' + position_controller_params + '; '
+            'fi; '
+            'exit 0',
         ],
         output='screen',
     )
