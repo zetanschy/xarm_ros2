@@ -99,6 +99,25 @@ Launch pick and place example script.
 ros2 launch xarm_scripts xarm_scripts.launch.py script:=pick_and_place
 ```
 
+### Hybrid Planning
+
+Arquitectura de hybrid planning de MoveIt 2 (global planner + local planner +
+manager) sobre el xArm6. Ver `xarm_scripts/HYBRID_PLANNING.md` para el detalle de
+la arquitectura, los plugins y como ajustar el obstaculo del demo.
+
+Launch simulation:
+
+```bash
+ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py \
+  world:=table_gz.world add_gripper:=true
+```
+
+Launch the three hybrid planning components plus the demo:
+
+```bash
+ros2 launch xarm_scripts hybrid_planning_xarm6.launch.py
+```
+
 ### Pick and Place - MTC Example
 
 Please refer to README_FINAL_PROJECT.md for instructions to install MTC package.

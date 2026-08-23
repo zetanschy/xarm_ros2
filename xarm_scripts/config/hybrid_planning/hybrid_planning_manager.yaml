@@ -1,0 +1,10 @@
+# El "cerebro": mapea eventos a acciones sobre el global y el local planner.
+#
+#   moveit_hybrid_planning/SinglePlanExecution
+#       planifica una vez y ejecuta. Si la trayectoria se invalida, aborta.
+#
+#   moveit_hybrid_planning/ReplanInvalidatedTrajectory
+#       cuando el local planner reporta que la trayectoria dejo de ser valida,
+#       vuelve a pedirle un plan al global planner sin parar la ejecucion.
+#       Este es el que hace visible el comportamiento reactivo en clase.
+planner_logic_plugin_name: "moveit_hybrid_planning/ReplanInvalidatedTrajectory"

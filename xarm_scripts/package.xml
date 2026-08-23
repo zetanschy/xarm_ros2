@@ -13,6 +13,9 @@
   <exec_depend>xarm_moveit_config</exec_depend>
   <exec_depend>moveit</exec_depend>
   <exec_depend>pymoveit2</exec_depend>
+  <exec_depend>moveit_msgs</exec_depend>
+  <exec_depend>moveit_hybrid_planning</exec_depend>
+  <exec_depend>rclcpp_components</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

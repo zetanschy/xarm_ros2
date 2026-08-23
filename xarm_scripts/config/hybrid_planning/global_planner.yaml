@@ -1,0 +1,24 @@
+# Global planner: resuelve el problema completo, sin restriccion de tiempo real.
+# Por defecto usa el planning pipeline normal de MoveIt (OMPL).
+global_planner_name: "moveit_hybrid_planning/MoveItPlanningPipeline"
+
+# El global planner es un moveit_cpp, asi que lleva su propio planning scene
+# monitor con los parametros habituales.
+planning_scene_monitor_options:
+  name: "planning_scene_monitor"
+  robot_description: "robot_description"
+  joint_state_topic: "/joint_states"
+  attached_collision_object_topic: "/moveit_cpp/planning_scene_monitor"
+  # Escucha el scene de move_group, asi ve los objetos que agrega el demo.
+  publish_planning_scene_topic: "/planning_scene"
+  monitored_planning_scene_topic: "/monitored_planning_scene"
+  wait_for_initial_state_timeout: 10.0
+
+planning_pipelines:
+  pipeline_names: ["ompl"]
+
+plan_request_params:
+  planning_attempts: 2
+  planning_pipeline: ompl
+  max_velocity_scaling_factor: 0.4
+  max_acceleration_scaling_factor: 0.4

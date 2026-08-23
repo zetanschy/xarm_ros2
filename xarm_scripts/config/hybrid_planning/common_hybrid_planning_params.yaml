@@ -1,0 +1,6 @@
+# Nombres de las acciones que comparten los tres componentes del hybrid planner.
+# Van bajo un namespace propio para no chocar con move_group ni con otro planner
+# que se lance en paralelo.
+global_planning_action_name: "/xarm6/hybrid_planning/global_planning_action"
+local_planning_action_name: "/xarm6/hybrid_planning/local_planning_action"
+hybrid_planning_action_name: "/xarm6/hybrid_planning/run_hybrid_planning"

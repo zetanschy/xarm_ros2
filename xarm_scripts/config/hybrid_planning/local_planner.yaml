@@ -1,0 +1,36 @@
+# Local planner: recorre la trayectoria global en tiempo real y manda comandos
+# al controlador. Es el que detecta que la trayectoria dejo de ser valida.
+robot_description: "robot_description"
+
+# Trajectory operator: mantiene la trayectoria de referencia y sigue por donde
+# va el robot. SimpleSampler avanza al waypoint mas cercano.
+trajectory_operator_plugin_name: "moveit_hybrid_planning/SimpleSampler"
+
+# Local constraint solver: genera el comando de cada iteracion. ForwardTrajectory
+# simplemente reenvia el siguiente waypoint, y con stop_before_collision frena
+# antes de chocar en vez de seguir de largo.
+local_constraint_solver_plugin_name: "moveit_hybrid_planning/ForwardTrajectory"
+
+# 100 Hz es el valor del demo de MoveIt. Con Gazebo + gz_ros2_control 50 Hz
+# alcanza y deja margen si la maquina va justa.
+local_planning_frequency: 50.0
+
+global_solution_topic: "global_trajectory"
+
+# A donde van los comandos. En Gazebo el xarm6 corre un
+# joint_trajectory_controller, que acepta JointTrajectory por topico.
+local_solution_topic: "/xarm6_traj_controller/joint_trajectory"
+local_solution_topic_type: "trajectory_msgs/JointTrajectory"
+publish_joint_positions: true
+publish_joint_velocities: false
+
+group_name: "xarm6"
+
+# De aqui saca el mundo. Apunta al scene de move_group para ver los mismos
+# objetos que RViz y que el script del demo agrega.
+monitored_planning_scene: "/monitored_planning_scene"
+collision_object_topic: "/collision_object"
+joint_states_topic: "/joint_states"
+
+# Parametro de ForwardTrajectory: detenerse antes de entrar en colision.
+stop_before_collision: true
