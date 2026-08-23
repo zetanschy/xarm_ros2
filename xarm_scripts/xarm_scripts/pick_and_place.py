@@ -23,6 +23,18 @@ START_Y = -0.4
 GOAL_Y = 0.4
 X_LEVEL = -0.3
 
+# OBJETO AGARRADO
+# El cubo agarrado va en el TCP, no en el origen de link6. La cadena del URDF es
+#     link6 -> link_eef -> xarm_gripper_base_link -> link_tcp   (z + 0.172)
+# asi que el centro de la caja adjunta tiene que estar a 0.172 m sobre link6.
+# Con z = 0.05 la caja quedaba DENTRO de la muneca: como link6 y todos los links
+# del gripper estan en touch_links, esas colisiones se ignoran, y el volumen
+# nunca ocupaba el espacio debajo de los dedos donde de verdad esta el cubo. El
+# resultado es que el planner no veia el cubo y lo pasaba por dentro de los
+# obstaculos.
+TCP_OFFSET_Z = 0.172
+PICKED_OBJECT_SIZE = [0.05, 0.05, 0.1]
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -57,10 +69,10 @@ def main(args=None):
     picked_object.id = "picked_object"
     primitive = SolidPrimitive()
     primitive.type = SolidPrimitive.BOX
-    primitive.dimensions = [0.05, 0.05, 0.1]
+    primitive.dimensions = PICKED_OBJECT_SIZE
     box_pose = Pose()
     box_pose.orientation.w = 1.0
-    box_pose.position.z = 0.05
+    box_pose.position.z = TCP_OFFSET_Z  # centrado en el TCP, no en link6
     picked_object.primitives.append(primitive)
     picked_object.primitive_poses.append(box_pose)
     picked_object.operation = CollisionObject.ADD
@@ -72,6 +84,9 @@ def main(args=None):
     
     with planning_scene_monitor.read_write() as scene:
         scene.process_attached_collision_object(attached_object)
+        # Sin esto los transforms del cuerpo adjunto quedan sin recalcular y el
+        # chequeo de colisiones puede usar una pose vieja.
+        scene.current_state.update()
     
     move_to_pose(planning, xarm_moveit, GROUP, lift_position, LINK)
 
