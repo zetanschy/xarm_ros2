@@ -15,7 +15,8 @@ from control_msgs.action import FollowJointTrajectory
 from control_msgs.msg import JointTolerance
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from rclpy.action import ActionClient
-from moveit_msgs.srv import GetPlanningScene
+from moveit_msgs.srv import GetPlanningScene, ApplyPlanningScene
+from moveit_msgs.msg import PlanningScene
 import numpy as np
 
 # Common constants
@@ -177,6 +178,70 @@ def move_to_pose(planning_component, xarm_moveit, group, position, link=LINK, or
         xarm_moveit.execute(group, plan_result.trajectory, blocking=True)
         return True
     return False
+
+
+def sync_scene_to_move_group(node, collision_objects=(), attached_objects=(),
+                             timeout_sec=5.0):
+    """
+    Copia objetos del planning scene al scene de move_group, para que se vean en RViz.
+
+    MoveItPy planifica con su PROPIA copia del planning scene, dentro del proceso
+    del script. Lo que se agrega con `planning_scene_monitor.read_write()` alcanza
+    para planificar, pero nunca sale de ahi: RViz dibuja el scene de *move_group*
+    (topico monitored_planning_scene), que es otro objeto. Por eso las cajas que
+    se agregan desde el script no aparecen en RViz.
+
+    Este helper aplica los mismos objetos al scene de move_group con el servicio
+    /apply_planning_scene. Como efecto secundario move_group tambien empieza a
+    tenerlos en cuenta en sus propios chequeos de colision.
+
+    Args:
+    ----
+    node : rclpy.node.Node
+        Nodo desde el que se llama el servicio.
+    collision_objects : iterable de moveit_msgs/CollisionObject
+        Objetos del mundo. Se respeta su campo `operation` (ADD / REMOVE / MOVE).
+    attached_objects : iterable de moveit_msgs/AttachedCollisionObject
+        Objetos adjuntos al robot.
+    timeout_sec : float
+        Espera maxima por el servicio y por la respuesta.
+
+    Returns
+    -------
+    bool
+        True si move_group acepto el diff.
+
+    """
+    client = node.create_client(ApplyPlanningScene, "/apply_planning_scene")
+    try:
+        if not client.wait_for_service(timeout_sec=timeout_sec):
+            node.get_logger().warning(
+                "/apply_planning_scene no esta disponible: los objetos se usan "
+                "para planificar pero no se veran en RViz.")
+            return False
+
+        scene = PlanningScene()
+        scene.is_diff = True
+        scene.world.collision_objects = list(collision_objects)
+        if attached_objects:
+            # Los objetos adjuntos viven en el robot_state, no en el mundo.
+            scene.robot_state.is_diff = True
+            scene.robot_state.attached_collision_objects = list(attached_objects)
+
+        request = ApplyPlanningScene.Request()
+        request.scene = scene
+
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
+        response = future.result()
+        if response is None:
+            node.get_logger().warning("/apply_planning_scene no respondio.")
+            return False
+        if not response.success:
+            node.get_logger().warning("move_group rechazo el diff del planning scene.")
+        return response.success
+    finally:
+        node.destroy_client(client)
 
 
 def set_gripper_state(xarm_moveit, state_name):

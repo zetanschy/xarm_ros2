@@ -12,7 +12,7 @@ from shape_msgs.msg import SolidPrimitive
 from xarm_scripts.moveit_utils import (
     GROUP, LINK, GRIPPER_CLOSE_POS,
     setup_moveit_config, set_gripper_state, set_gripper,
-    pose_to_stamped, move_to_pose
+    pose_to_stamped, move_to_pose, sync_scene_to_move_group
 )
 
 # ARM POSITIONS COMPONENTES
@@ -99,6 +99,10 @@ def main(args=None):
         # chequeo de colisiones puede usar una pose vieja.
         scene.current_state.update()
     
+    # El scene de arriba es local a este proceso. Para que el cubo se vea en RViz
+    # hay que mandarlo tambien al scene de move_group.
+    sync_scene_to_move_group(node, attached_objects=[attached_object])
+    
     move_to_pose(planning, xarm_moveit, GROUP, lift_position, LINK)
 
     # 2) COLLISION AVOIDANCE
@@ -126,6 +130,8 @@ def main(args=None):
     with planning_scene_monitor.read_write() as scene:
         scene.apply_collision_object(collision_object)
         scene.current_state.update()
+    
+    sync_scene_to_move_group(node, collision_objects=[collision_object])
     
     time.sleep(1.0)  # Give time for the scene to update
     
@@ -162,6 +168,11 @@ def main(args=None):
     with planning_scene_monitor.read_write() as scene:
         scene.process_attached_collision_object(attached_object)
         scene.apply_collision_object(picked_object)
+        scene.current_state.update()
+    
+    sync_scene_to_move_group(
+        node, collision_objects=[picked_object], attached_objects=[attached_object])
+    
     time.sleep(0.5)
     
     move_to_pose(planning, xarm_moveit, GROUP, retract_position, LINK)
