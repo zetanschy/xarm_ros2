@@ -47,6 +47,7 @@ private:
   bool global_planning_in_flight_ = false;
   int replan_attempts_ = 0;
   std::chrono::steady_clock::time_point last_request_time_{};
+  std::chrono::steady_clock::time_point global_request_sent_at_{};
 
   // Intervalo minimo entre pedidos al global planner.
   //
@@ -59,5 +60,16 @@ private:
 
   // Tope de reintentos, para que la demo termine si de verdad no hay salida.
   static constexpr int MAX_REPLAN_ATTEMPTS = 30;
+
+  // Watchdog del flag de "hay un plan global en vuelo".
+  //
+  // El flag solo se limpia cuando llega GLOBAL_PLANNING_ACTION_SUCCESSFUL,
+  // _ABORTED o _CANCELED. Si por cualquier razon no llega ninguno de los tres, el
+  // flag queda pegado en true, la exclusion mutua descarta TODOS los eventos
+  // siguientes y el brazo se queda frenado para siempre: en el log solo se ven
+  // "Collision ahead" y "stuck", y ni un solo "Pidiendo plan global".
+  //
+  // Pasado este tiempo se considera perdido el pedido y se permite uno nuevo.
+  static constexpr std::chrono::milliseconds GLOBAL_REQUEST_TIMEOUT{ 3000 };
 };
 }  // namespace xarm_hybrid_planning

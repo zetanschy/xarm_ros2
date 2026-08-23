@@ -80,16 +80,16 @@ WALL_STATIC = {
 # Placas que aparecen cuando sale la primera solucion global. Igual que en el
 # demo de MoveIt, son DOS y se agregan a la vez que se BORRA la estatica: la
 # escena no acumula obstaculos, y el brazo siempre tiene por donde pasar.
+# UNA sola placa, no dos. Con dos, el problema que le queda al global planner es
+# lo bastante cerrado como para que muchas soluciones de RRTConnect no sean
+# seguibles por SimpleSampler/ForwardTrajectory, y la demo se vuelve una loteria:
+# a veces sale en 1-4 replanificaciones y a veces gasta las 30 y se rinde. Con una
+# placa el desvio es amplio y cualquier solucion sirve.
 WALLS_SURPRISE = [
     {
-        'id': 'placa_sorpresa_a',
-        'size': [0.02, 0.40, 0.30],
-        'pos': (0.30, 0.30, 0.30),
-    },
-    {
-        'id': 'placa_sorpresa_b',
-        'size': [0.40, 0.02, 0.25],
-        'pos': (0.25, 0.50, 0.20),
+        'id': 'placa_sorpresa',
+        'size': [0.02, 0.35, 0.30],
+        'pos': (0.30, 0.32, 0.30),
     },
 ]
 

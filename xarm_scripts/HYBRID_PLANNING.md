@@ -146,24 +146,67 @@ Esa última línea repitiéndose **es** el hybrid planning: el global planner
 volviendo a resolver mientras el local mantiene el robot quieto y seguro. Con
 `SinglePlanExecution` en lugar de `ReplanInvalidatedTrajectory`, ahí abortaría.
 
-## Estado: funciona de punta a punta
+## Estado: funciona, pero es una lotería (~2 de 3)
 
-El ciclo completo cierra: **obstáculo aparece → replanifica → llega a la meta**.
-Dos corridas seguidas sin reiniciar Gazebo, idénticas:
+El ciclo completo **sí cierra**: obstáculo aparece → replanifica → llega a la meta
+con 0.022 rad de error. Pero no siempre. Medido con una placa sorpresa, tres
+corridas seguidas:
 
 ```
-Pidiendo plan global (intento 1 de 30).
->>> Salio la primera solucion global. Ahora cambia la escena...
-Pidiendo plan global (intento 2 de 30).
-Pidiendo plan global (intento 3 de 30).
-Hybrid planning termino OK.
+corrida 1: OK=1 intentos=3
+corrida 2: OK=1 intentos=3
+corrida 3: OK=0 intentos=30    <- gasta los 30 reintentos y se rinde
 ```
 
-El brazo llega a la meta con 0.022 rad de error total sobre las 6 articulaciones.
-Tres replanificaciones, ~10 s de punta a punta.
+El resultado es **bimodal**: o sale en 3 replanificaciones, o no sale en 30. No
+hay término medio. Con dos placas sorpresa era peor.
 
-Para que llegara ahí hicieron falta **dos arreglos más** además de la interfaz de
-control. Los dos son didácticos y vale la pena contarlos en clase.
+### Por qué es bimodal (causa raíz, en el operador de trayectoria de MoveIt)
+
+Está en `SimpleSampler::getLocalTrajectory`:
+
+```cpp
+next_desired = reference_trajectory_->getWayPoint(next_waypoint_index_);
+if (next_desired.distance(current_state) <= WAYPOINT_RADIAN_TOLERANCE)
+    next_waypoint_index_++;
+local_trajectory.addSuffixWayPoint(reference_trajectory_->getWayPoint(next_waypoint_index_), ...);
+```
+
+Cuando llega una solución global nueva, `addTrajectorySegment` la adopta y pone
+`next_waypoint_index_ = 0`. El waypoint 0 es el **estado inicial que usó el global
+planner**, no el estado real del brazo en el momento en que la trayectoria llega.
+
+Si el brazo se movió entre que el planner leyó el estado y que la solución llegó,
+la distancia al waypoint 0 supera `WAYPOINT_RADIAN_TOLERANCE`, el índice **nunca
+avanza**, y el local planner se queda comandando para siempre una pose vieja. Si
+además esa pose está en colisión, salen los `Collision ahead` infinitos.
+
+Cuando el estado sí coincide, el índice avanza y todo funciona en 3
+replanificaciones. De ahí lo bimodal.
+
+Esto está en `SimpleSampler`, el operador de trayectoria de referencia de MoveIt.
+El planner logic plugin propio no puede arreglarlo: la decisión de si el índice
+avanza no pasa por ahí.
+
+### Cómo cerrarlo del todo
+
+Escribir también un **trajectory operator** propio, contra
+`TrajectoryOperatorInterface`, que enganche la trayectoria nueva desde el estado
+**actual** del brazo en vez del estado inicial del planner: buscar el waypoint más
+cercano al estado real y arrancar de ahí, en lugar de asumir el índice 0. Es el
+mismo patrón que `xarm_hybrid_planning/ReplanWhenIdle` pero para la otra interfaz,
+y va en el mismo paquete.
+
+Con eso el ciclo debería cerrar de forma determinista, porque desaparece la única
+fuente de aleatoriedad que queda.
+
+### Mientras tanto, para la clase
+
+Aun con la lotería, todo lo que hay que mostrar se ve en **cada** corrida: el plan
+global inicial esquivando la placa estática, la ejecución local a 100 Hz, el
+cambio de escena, el local planner frenando el brazo antes de chocar, y el manager
+pidiendo replanificaciones. Lo único que no siempre pasa es el final feliz. Si
+sale mal, Ctrl-C y de nuevo: dos de cada tres salen.
 
 ### Arreglo A: el global planner no veía la escena
 

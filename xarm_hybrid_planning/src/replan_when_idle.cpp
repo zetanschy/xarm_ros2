@@ -25,18 +25,33 @@ bool ReplanWhenIdle::initialize(
 
 bool ReplanWhenIdle::requestGlobalPlanIfIdle()
 {
+  const auto now = std::chrono::steady_clock::now();
+
   if (global_planning_in_flight_)
   {
-    // Exclusion mutua: sin esto, cada evento del local planner dispara un pedido
-    // que preempta al anterior y ninguno termina nunca.
-    RCLCPP_DEBUG(LOGGER, "Ya hay una planificacion global en vuelo; se ignora el evento.");
-    return true;
+    // Watchdog: si el pedido anterior nunca reporto resultado, no se puede quedar
+    // bloqueando para siempre. Sin esto el brazo se frena definitivamente y en el
+    // log solo quedan "Collision ahead" y "stuck", sin ningun pedido nuevo.
+    if (now - global_request_sent_at_ > GLOBAL_REQUEST_TIMEOUT)
+    {
+      RCLCPP_WARN(LOGGER,
+                  "El pedido global anterior no reporto resultado en %ld ms; se "
+                  "asume perdido y se permite uno nuevo.",
+                  static_cast<long>(GLOBAL_REQUEST_TIMEOUT.count()));
+      global_planning_in_flight_ = false;
+    }
+    else
+    {
+      // Exclusion mutua: sin esto, cada evento del local planner dispara un
+      // pedido que preempta al anterior y ninguno termina nunca.
+      RCLCPP_DEBUG(LOGGER, "Ya hay una planificacion global en vuelo; se ignora el evento.");
+      return true;
+    }
   }
 
   // Limite de tasa: LOCAL_PLANNER_STUCK se re-arma cada pocas decenas de ms
   // mientras el brazo este quieto. Sin esto se gastan todos los reintentos en un
   // segundo, incluso cuando el brazo esta avanzando por un desvio nuevo.
-  const auto now = std::chrono::steady_clock::now();
   if (last_request_time_.time_since_epoch().count() != 0 && now - last_request_time_ < MIN_REPLAN_INTERVAL)
   {
     RCLCPP_DEBUG(LOGGER, "Pedido demasiado seguido; se ignora el evento.");
@@ -57,6 +72,7 @@ bool ReplanWhenIdle::requestGlobalPlanIfIdle()
     return false;
   }
   global_planning_in_flight_ = true;
+  global_request_sent_at_ = now;
   return true;
 }
 
@@ -69,6 +85,7 @@ ReactionResult ReplanWhenIdle::react(const HybridPlanningEvent& event)
       global_planning_in_flight_ = false;
       replan_attempts_ = 0;
       last_request_time_ = {};
+      global_request_sent_at_ = {};
       if (!requestGlobalPlanIfIdle())
       {
         hybrid_planning_manager_->sendHybridPlanningResponse(false);
