@@ -11,16 +11,22 @@ trajectory_operator_plugin_name: "moveit_hybrid_planning/SimpleSampler"
 # antes de chocar en vez de seguir de largo.
 local_constraint_solver_plugin_name: "moveit_hybrid_planning/ForwardTrajectory"
 
-# 100 Hz es el valor del demo de MoveIt. Con Gazebo + gz_ros2_control 50 Hz
-# alcanza y deja margen si la maquina va justa.
-local_planning_frequency: 50.0
+# Igual que el demo de MoveIt. El local planner es un lazo de control: a 100 Hz
+# el movimiento sale suave y el chequeo de colisiones va lo bastante seguido.
+local_planning_frequency: 100.0
 
 global_solution_topic: "global_trajectory"
 
-# A donde van los comandos. En Gazebo el xarm6 corre un
-# joint_trajectory_controller, que acepta JointTrajectory por topico.
-local_solution_topic: "/xarm6_traj_controller/joint_trajectory"
-local_solution_topic_type: "trajectory_msgs/JointTrajectory"
+# A donde van los comandos: al JointGroupPositionController que spawnea
+# hybrid_planning_xarm6.launch.py, NO al xarm6_traj_controller.
+#
+# El local planner escribe una posicion articular por ciclo. Un
+# JointTrajectoryController espera trayectorias e interpola solo; mandarle una
+# trayectoria de un punto 50 veces por segundo lo hace reiniciar sin parar, la
+# ejecucion se atrasa y termina violando tolerancias, con el brazo clavado contra
+# sus limites. Ver config/hybrid_planning/xarm6_position_controller.yaml.
+local_solution_topic: "/xarm6_joint_group_position_controller/commands"
+local_solution_topic_type: "std_msgs/Float64MultiArray"
 publish_joint_positions: true
 publish_joint_velocities: false
 

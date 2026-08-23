@@ -1,0 +1,26 @@
+# Controlador de posicion directa para el local planner del hybrid planning.
+#
+# El local planner es un controlador en tiempo real: quiere escribir una posicion
+# articular por ciclo. Eso es lo que hace un JointGroupPositionController.
+#
+# El xarm6_traj_controller que trae la simulacion es un JointTrajectoryController:
+# espera TRAYECTORIAS e interpola el mismo, con sus tolerancias. Mandarle una
+# trayectoria nueva de un solo punto 50 veces por segundo lo hace reiniciar todo
+# el tiempo, la ejecucion se atrasa, y termina violando tolerancias. Asi es como
+# el brazo acababa clavado contra sus limites articulares.
+#
+# El demo de MoveIt hace exactamente esto: declara un
+# panda_joint_group_position_controller aparte del panda_arm_controller, y el
+# local planner le publica Float64MultiArray a 100 Hz.
+#
+# Este archivo lo carga el spawner de hybrid_planning_xarm6.launch.py con
+# --param-file, asi que NO hace falta tocar xarm_controller/config/.
+xarm6_joint_group_position_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6

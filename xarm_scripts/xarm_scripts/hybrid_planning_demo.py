@@ -40,13 +40,14 @@ from moveit_msgs.msg import (
     Constraints,
     JointConstraint,
     MotionPlanRequest,
+    MotionPlanResponse,
     MotionSequenceItem,
     PlanningScene,
 )
 from moveit_msgs.srv import ApplyPlanningScene
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from std_msgs.msg import Float64MultiArray
 
 GROUP = 'xarm6'
 BASE_FRAME = 'link_base'
@@ -63,42 +64,34 @@ GOAL_JOINTS = [1.4, -0.5, -0.8, 0.0, 0.6, 0.0]
 # ver y la pared sorpresa nunca llega a entrar.
 START_JOINTS = [0.0, -0.5, -0.75, 0.0, 0.0, 0.0]
 
-# Pared baja que ya esta cuando se planifica. Queda en el camino del barrido,
-# asi que el global planner tiene que pasar por arriba desde el primer plan.
+# Los obstaculos son PLACAS FINAS (1-2 cm), no cajas macizas. El demo de MoveIt
+# usa {0.5, 0.8, 0.01} y {1.0, 0.4, 0.01}, y la razon es practica: una placa
+# invalida cualquier trayectoria que la cruce, pero casi no le quita espacio libre
+# al brazo, asi que siempre queda un camino alternativo. Con cajas macizas el
+# replan se queda sin solucion y todo aborta.
+
+# Placa que ya esta cuando se planifica: el global planner la esquiva de entrada.
 WALL_STATIC = {
-    'id': 'pared_estatica',
-    'size': [0.05, 0.5, 0.25],
-    'pos': (0.35, 0.25, 0.10),
+    'id': 'placa_estatica',
+    'size': [0.40, 0.02, 0.30],
+    'pos': (0.35, 0.10, 0.25),
 }
 
-# Pared que aparece a mitad del movimiento. Ocupa la parte alta cerca de la meta,
-# asi que invalida lo que queda de la trayectoria pero deja una salida por abajo:
-# si tapara todo, el local planner se quedaria frenado para siempre y no se veria
-# el replan.
-# El TCP recorre este camino (FK sobre el camino articular START -> GOAL):
-#     0%  (+0.539, +0.000, +0.495)
-#    35%  (+0.470, +0.250, +0.448)   <- aca se inyecta la pared
-#    60%  (+0.350, +0.380, +0.420)   <- aca la pared la bloquea
-#   100%  (+0.084, +0.486, +0.369)   <- meta, lejos de la pared
-# La pared va al 60%: corta el arco directo pero deja salida por arriba, y no
-# toca la zona de la meta. Si se la pone encima de la meta, el global planner
-# devuelve "failed to find a solution" y no se ve el replan.
-# Caja chica, no una pared: si el obstaculo es grande, o cae encima de donde ya
-# esta el brazo, el estado inicial queda en colision y el global planner devuelve
-# "failed to find a solution" en vez de replanificar. Va cerca del 75% del camino
-# (TCP +0.255, +0.444, +0.397), bien por delante del punto de inyeccion (35%,
-# TCP +0.470, +0.250, +0.448), y es lo bastante chica para que quede vuelta.
-WALL_SURPRISE = {
-    'id': 'obstaculo_sorpresa',
-    'size': [0.06, 0.14, 0.18],
-    'pos': (0.26, 0.44, 0.40),
-}
-
-# Fraccion del camino articular que se recorre antes de meter la pared sorpresa.
-# NO se puede usar el primer feedback: llega ~1 ms despues de aceptar la meta,
-# cuando el brazo todavia no se movio, y entonces el local planner frena de una
-# y el manager entra en un bucle de replanificacion sin haber ejecutado nada.
-SURPRISE_AT_PROGRESS = 0.35
+# Placas que aparecen cuando sale la primera solucion global. Igual que en el
+# demo de MoveIt, son DOS y se agregan a la vez que se BORRA la estatica: la
+# escena no acumula obstaculos, y el brazo siempre tiene por donde pasar.
+WALLS_SURPRISE = [
+    {
+        'id': 'placa_sorpresa_a',
+        'size': [0.02, 0.40, 0.30],
+        'pos': (0.30, 0.30, 0.30),
+    },
+    {
+        'id': 'placa_sorpresa_b',
+        'size': [0.40, 0.02, 0.25],
+        'pos': (0.25, 0.50, 0.20),
+    },
+]
 
 
 def make_box(spec, frame_id=BASE_FRAME):
@@ -150,9 +143,10 @@ class HybridPlanningDemo(Node):
         self.scene_client = self.create_client(
             ApplyPlanningScene, '/apply_planning_scene')
 
-        # Publisher directo al controlador, para el reset sin planificar.
-        self.traj_pub = self.create_publisher(
-            JointTrajectory, '/xarm6_traj_controller/joint_trajectory', 10)
+        # Publisher directo al controlador de posicion, para el reset sin
+        # planificar. Es el mismo topico que usa el local planner.
+        self.command_pub = self.create_publisher(
+            Float64MultiArray, '/xarm6_joint_group_position_controller/commands', 10)
 
         self.surprise_sent = False
         self.surprise_enabled = False
@@ -160,11 +154,19 @@ class HybridPlanningDemo(Node):
         self.result_code = None
         self.goal_joints = START_JOINTS
 
-        # Progreso del movimiento, para saber cuando meter la pared sorpresa.
         self.joint_positions = {}
         self.initial_distance = None
         self.create_subscription(
             JointState, '/joint_states', self.on_joint_states, 10)
+
+        # El swap de obstaculos se dispara cuando el global planner PUBLICA una
+        # solucion, igual que el demo de MoveIt (que se suscribe a
+        # 'global_trajectory'). Es mejor que disparar por progreso: pasa una vez
+        # por ciclo de planificacion, y como las operaciones son idempotentes la
+        # escena deja de cambiar despues del primer swap, asi que el replan
+        # siguiente converge en vez de invalidarse otra vez.
+        self.create_subscription(
+            MotionPlanResponse, 'global_trajectory', self.on_global_solution, 10)
 
     # ------------------------------------------------------------------ #
     # Planning scene
@@ -242,31 +244,30 @@ class HybridPlanningDemo(Node):
     # Callbacks de la accion
     # ------------------------------------------------------------------ #
     def on_joint_states(self, msg):
-        """Sigue el progreso y mete la pared sorpresa a mitad de camino."""
+        """Solo lleva el estado articular, para medir progreso y el reset."""
         for name, position in zip(msg.name, msg.position):
             self.joint_positions[name] = position
 
-        distance = self.distance_to_goal()
-        if distance is None:
-            return
+    def on_global_solution(self, msg):
+        """
+        Llega una solucion global nueva: es el momento de cambiar la escena.
 
-        if self.initial_distance is None:
-            self.initial_distance = distance
+        Igual que el demo de MoveIt. Se BORRA la placa estatica y se agregan las
+        dos placas sorpresa en la misma actualizacion, para que la escena no
+        acumule obstaculos. Como las operaciones son idempotentes, a partir del
+        segundo aviso la escena ya no cambia y el replan converge.
+        """
+        if not self.surprise_enabled or self.surprise_sent:
             return
-
-        if (not self.surprise_enabled or self.surprise_sent
-                or self.initial_distance < 1e-3):
-            return
-
-        progress = 1.0 - (distance / self.initial_distance)
-        if progress >= SURPRISE_AT_PROGRESS:
-            self.surprise_sent = True
-            self.get_logger().warning(
-                f'>>> {progress * 100:.0f}% del camino recorrido: aparece '
-                '"pared_sorpresa" cruzando lo que queda de la trayectoria. El '
-                'local planner deberia invalidarla y el manager pedirle un plan '
-                'nuevo al global planner, sin volver a empezar.')
-            self.apply_objects([make_box(WALL_SURPRISE)])
+        self.surprise_sent = True
+        self.get_logger().warning(
+            '>>> Salio la primera solucion global. Ahora cambia la escena: se '
+            'borra "placa_estatica" y aparecen dos placas nuevas cruzando la '
+            'trayectoria. El local planner deberia invalidarla y el manager '
+            'pedirle un plan nuevo al global planner, sin volver a empezar.')
+        self.apply_objects(
+            [remove_box(WALL_STATIC['id'])]
+            + [make_box(w) for w in WALLS_SURPRISE])
 
     def distance_to_goal(self):
         """Distancia en espacio articular hasta la meta, o None si falta info."""
@@ -317,53 +318,52 @@ class HybridPlanningDemo(Node):
         handle.get_result_async().add_done_callback(self.on_result)
 
     # ------------------------------------------------------------------ #
-    def reset_without_planning(self, joints, min_duration_sec=5.0):
+    def reset_without_planning(self, joints, ramp_sec=3.0, rate_hz=50.0):
         """
-        Manda el brazo a una pose conocida comandando el controlador directo.
+        Manda el brazo a una pose conocida comandando el controlador de posicion.
 
-        No pasa por el planner a proposito. Si una corrida anterior dejo el brazo
-        en una configuracion rara o fuera de limites, el global planner responde
-        "failed to find a solution" y ni el paso de ir al inicio funciona. Con un
-        JointTrajectory al controlador se sale de ahi siempre.
+        No pasa por el planner a proposito: si una corrida anterior dejo el brazo
+        en una configuracion rara, el global planner responde "failed to find a
+        solution" y ni el paso de ir al inicio funciona.
+
+        Se hace en rampa y no de un salto porque el JointGroupPositionController
+        escribe la posicion tal cual, sin interpolar: un salto grande sacude el
+        modelo en Gazebo.
         """
-        # La duracion se escala con la distancia: desde una pose lejana, una
-        # trayectoria fija de 5 s no alcanza y el reset se queda a mitad.
         self.goal_joints = list(joints)
-        for _ in range(20):
+        for _ in range(30):
             rclpy.spin_once(self, timeout_sec=0.1)
             if self.distance_to_goal() is not None:
                 break
-        distance = self.distance_to_goal() or 0.0
-        duration_sec = max(min_duration_sec, distance * 2.0)
+        if not all(n in self.joint_positions for n in JOINT_NAMES):
+            self.get_logger().error('No llegaron /joint_states.')
+            return False
 
-        message = JointTrajectory()
-        message.joint_names = list(JOINT_NAMES)
-
-        point = JointTrajectoryPoint()
-        point.positions = [float(v) for v in joints]
-        point.time_from_start.sec = int(duration_sec)
-        point.time_from_start.nanosec = int((duration_sec % 1) * 1e9)
-        message.points.append(point)
-
+        start = [self.joint_positions[n] for n in JOINT_NAMES]
+        target = [float(v) for v in joints]
+        steps = max(1, int(ramp_sec * rate_hz))
         self.get_logger().info(
-            f'Reset directo al controlador: {[round(v, 3) for v in joints]} '
-            f'(distancia {distance:.2f} rad, {duration_sec:.1f} s)')
-        # Se repite unas veces porque es un topico, no una accion: si el
-        # controlador todavia no se suscribio, el primer mensaje se pierde.
-        for _ in range(5):
-            self.traj_pub.publish(message)
-            time.sleep(0.2)
+            f'Reset por rampa al controlador de posicion: '
+            f'{[round(v, 3) for v in target]} en {ramp_sec:.1f} s')
 
-        deadline = time.time() + duration_sec + 5.0
+        for i in range(1, steps + 1):
+            f = i / steps
+            message = Float64MultiArray()
+            message.data = [a + (b - a) * f for a, b in zip(start, target)]
+            self.command_pub.publish(message)
+            rclpy.spin_once(self, timeout_sec=1.0 / rate_hz)
+
+        deadline = time.time() + 3.0
         while rclpy.ok() and time.time() < deadline:
-            rclpy.spin_once(self, timeout_sec=0.2)
+            rclpy.spin_once(self, timeout_sec=0.1)
             distance = self.distance_to_goal()
             if distance is not None and distance < 0.05:
                 self.get_logger().info('Reset completo.')
                 return True
         self.get_logger().warning(
-            'El reset no llego a la tolerancia; se sigue igual.')
-        return False
+            f'El reset quedo a {self.distance_to_goal():.3f} rad de la pose de '
+            'inicio; se sigue igual.')
+        return True
 
     def send_goal_and_wait(self, joints, allow_surprise, timeout_sec=120.0):
         """Manda una meta al hybrid planner y espera el resultado."""
@@ -412,10 +412,9 @@ class HybridPlanningDemo(Node):
         # Paso 0: escena limpia y brazo en una pose conocida, para que la demo
         # se vea igual en cada corrida.
         self.get_logger().info('--- Paso 0: limpiando escena y yendo al inicio ---')
-        self.apply_objects([
-            remove_box(WALL_STATIC['id']),
-            remove_box(WALL_SURPRISE['id']),
-        ])
+        self.apply_objects(
+            [remove_box(WALL_STATIC['id'])]
+            + [remove_box(w['id']) for w in WALLS_SURPRISE])
         time.sleep(1.0)
         # Reset sin planificar: robusto incluso si la corrida anterior dejo el
         # brazo en una pose invalida.
@@ -430,7 +429,7 @@ class HybridPlanningDemo(Node):
 
         # Paso 1: obstaculo que ya esta cuando se planifica.
         self.get_logger().info(
-            '--- Paso 1: agregando "pared_estatica" (el global planner la '
+            '--- Paso 1: agregando "placa_estatica" (el global planner la '
             'esquiva desde el primer plan) ---')
         if not self.apply_objects([make_box(WALL_STATIC)]):
             self.get_logger().error('No se pudo aplicar el objeto al scene.')
@@ -439,17 +438,17 @@ class HybridPlanningDemo(Node):
 
         # Paso 2: barrido con la pared sorpresa a mitad de camino.
         self.get_logger().info(
-            '--- Paso 2: barrido hacia la meta. A mitad de camino aparece '
-            '"pared_sorpresa" ---')
+            '--- Paso 2: barrido hacia la meta. Al salir la primera solucion '
+            'global cambia la escena ---')
         ok = self.send_goal_and_wait(GOAL_JOINTS, allow_surprise=True)
         if self.surprise_sent:
             self.get_logger().info(
-                'La pared sorpresa se inyecto durante la ejecucion: eso es lo '
-                'que dispara el replan del global planner.')
+                'La escena cambio durante la ejecucion: eso es lo que dispara el '
+                'replan del global planner.')
         else:
             self.get_logger().warning(
-                'La pared sorpresa NO se inyecto (el movimiento termino antes de '
-                f'llegar al {SURPRISE_AT_PROGRESS * 100:.0f}% del camino).')
+                'La escena NO cambio: no llego a publicarse ninguna solucion '
+                'global.')
         return ok
 
 

@@ -30,7 +30,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess, OpaqueFunction,
+                            TimerAction)
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
@@ -147,7 +148,30 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
     )
 
-    actions = [container]
+    # El local planner necesita un JointGroupPositionController, no el
+    # JointTrajectoryController de la simulacion. Se spawnea con param-file propio
+    # para no tocar xarm_controller/config/, y se desactiva el xarm6_traj_controller
+    # porque los dos reclaman las mismas command interfaces de posicion y
+    # ros2_control no permite dos controladores activos sobre la misma interfaz.
+    position_controller_params = os.path.join(
+        get_package_share_directory('xarm_scripts'),
+        'config', 'hybrid_planning', 'xarm6_position_controller.yaml')
+
+    switch_to_position_control = ExecuteProcess(
+        cmd=[
+            'bash', '-c',
+            'ros2 control set_controller_state xarm6_traj_controller inactive '
+            '  --controller-manager /controller_manager || true; '
+            'ros2 run controller_manager spawner '
+            '  xarm6_joint_group_position_controller '
+            '  --controller-manager /controller_manager '
+            '  --controller-type position_controllers/JointGroupPositionController '
+            '  --param-file ' + position_controller_params,
+        ],
+        output='screen',
+    )
+
+    actions = [container, TimerAction(period=4.0, actions=[switch_to_position_control])]
 
     if run_demo:
         # El demo espera a que el contenedor levante los tres componentes antes
@@ -164,7 +188,7 @@ def launch_setup(context, *args, **kwargs):
                 use_sim_time,
             ],
         )
-        actions.append(TimerAction(period=8.0, actions=[demo_node]))
+        actions.append(TimerAction(period=12.0, actions=[demo_node]))
 
     return actions
 
