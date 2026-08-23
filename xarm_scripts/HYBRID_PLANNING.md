@@ -109,32 +109,91 @@ volviendo a resolver mientras el local mantiene el robot quieto y seguro. Con
 
 ## Estado: qué está verificado y qué no
 
-Verificado contra la simulación en vivo:
+Verificado contra la simulación en vivo, varias corridas:
 
 - Los tres componentes cargan con los plugins correctos.
 - El handoff global → local funciona (`Global goal accepted` → `Local goal
   accepted` → `The local planner is solving...`).
 - El local planner publica al controlador del xArm6.
 - La inyección por progreso dispara exactamente al 35%.
-- `stop_before_collision` funciona: 694 `Collision ahead, holding current
+- `stop_before_collision` funciona: 606 `Collision ahead, holding current
   position` en una corrida.
-- El manager pide replanificación al global planner: 7 pedidos tras la inyección.
+- El manager pide replanificación al global planner: 14 pedidos tras la
+  inyección.
 
-**No verificado todavía:** el camino feliz completo, o sea obstáculo aparece →
-replanifica → llega a la meta. En todas mis corridas terminó en
-`Global planner failed to find a solution`, porque el obstáculo sorpresa deja al
-brazo sin salida: cae sobre el volumen que sus propios eslabones ya ocupan, y
-entonces el estado inicial del replan queda en colisión.
+**No funciona todavía:** el camino feliz completo, o sea obstáculo aparece →
+replanifica → llega a la meta. Termina en
+`Global planner failed to find a solution`. La causa está identificada y **no es
+la geometría del obstáculo ni esta configuración**.
 
-Eso es **geometría, no arquitectura** — toda la maquinaria reactiva ya se ve
-funcionando en los logs. Para ajustarlo hace falta ver RViz mientras corre, que
-es justo lo que no pude hacer acá (rviz2 no arranca desde una shell del snap de
-VS Code).
+### Limitación conocida: el bucle de replanificación se pisa a sí mismo
+
+En el log, antes del fallo, aparece:
+
+```
+[hybrid_planning_manager]: Hybrid Planning Manager failed to react to 'Global planning action aborted'
+```
+
+La secuencia es:
+
+1. `forward_trajectory.cpp` manda `COLLISION_AHEAD` **una vez** por trayectoria
+   (flag `path_invalidation_event_send_`).
+2. `ReplanInvalidatedTrajectory::react()` responde a ese evento pidiéndole al
+   global planner una meta nueva.
+3. Cuando llega la solución global nueva, el local planner **resetea el flag**.
+4. Si la trayectoria nueva sigue bloqueada, vuelve a mandar `COLLISION_AHEAD`, y
+   se pide otra meta global.
+5. Cada meta nueva **aborta** la anterior si todavía estaba resolviendo.
+6. `ReplanInvalidatedTrajectory::react()` sólo maneja `COLLISION_AHEAD` y
+   `LOCAL_PLANNER_STUCK`. Para cualquier otro evento devuelve
+   `'ReplanInvalidatedTrajectory' plugin cannot handle this event` con
+   `FAILURE`, y el hybrid planning entero muere.
+
+O sea: el bucle de replanificación se autolimita. Bajar
+`allowed_planning_time` a 0.5 s reduce la ventana pero no elimina la carrera.
+
+Descartado como causa, con evidencia:
+
+- **La geometría del obstáculo.** Se probaron 8 candidatos con los servicios
+  `/check_state_validity` y `/plan_kinematic_path` de move_group, sin mover el
+  robot. Cuatro cumplen las tres condiciones: el brazo no está en colisión al
+  inyectar, el obstáculo invalida configuraciones del camino, y sigue existiendo
+  plan hasta la meta — tanto desde el 35% como desde la última configuración
+  válida antes del bloqueo. El que está en el código (`0.06 x 0.14 x 0.18` en
+  `(0.26, 0.44, 0.40)`) es uno de esos cuatro.
+- **`local_planning_frequency`.** Se probó a 10 Hz; misma carrera.
+
+### Caminos para resolverlo
+
+1. **Escribir un planner logic plugin propio.** Es la solución de fondo: una
+   variante de `ReplanInvalidatedTrajectory` que ignore
+   `Global planning action aborted` en vez de tratarlo como fatal, y que no pida
+   una meta global nueva si ya hay una en vuelo. Son ~40 líneas de C++ contra
+   `PlannerLogicInterface`.
+2. **Usar `SinglePlanExecution`** y cambiar el objetivo de la demo: mostrar que
+   sin replanificación el local planner igual frena el brazo antes de chocar, y
+   el manager aborta con un error definido. Es una lección válida — la mitad
+   "qué pasa sin hybrid planning" — y no depende de la parte frágil. Se cambia
+   una línea de `hybrid_planning_manager.yaml`.
+
+Para la clase, la opción 2 más el log de la opción 1 (14 pedidos de replan
+visibles) cuenta la historia completa sin depender de que el camino feliz cierre.
+
+### Reiniciar entre corridas
+
+**Hay que reiniciar Gazebo entre corridas de la demo.** Durante el bucle de
+frenar-y-replanificar el brazo termina clavado contra sus límites articulares
+(se ven los valores exactos del URDF en `/joint_states`: `-2.059` de `joint2`,
+`0.19198` de `joint3`, `-1.69297` de `joint5`) y trabado físicamente contra la
+mesa. Desde ahí **ningún comando de posición lo saca** — se comprobó con 27 s de
+comandos al controlador sin que se moviera un grado — y el global planner
+responde `failed to find a solution` porque el estado inicial está fuera de
+límites. El Paso 0 de la demo detecta esto y aborta con un mensaje claro.
 
 ### Cómo ajustar el obstáculo sorpresa
 
-El TCP recorre este camino (FK sobre el camino articular `START_JOINTS` →
-`GOAL_JOINTS`):
+Si se quiere probar otra geometría, el TCP recorre este camino (FK sobre el
+camino articular `START_JOINTS` → `GOAL_JOINTS`):
 
 ```
   0%  (+0.539, +0.000, +0.495)
@@ -144,16 +203,14 @@ El TCP recorre este camino (FK sobre el camino articular `START_JOINTS` →
 100%  (+0.084, +0.486, +0.369)   <- meta
 ```
 
-Reglas que salieron de las pruebas:
+Un candidato sirve si cumple las tres:
 
-- **Chico, no una pared.** Un obstáculo grande no deja vuelta y el global planner
-  devuelve `failed to find a solution` en vez de replanificar.
-- **Bien por delante del punto de inyección.** Si cae donde el brazo ya está, el
-  estado inicial queda en colisión.
-- **Lejos de la meta.** Si tapa la zona de la meta, no hay solución posible.
+1. el brazo **no** está en colisión con él en la configuración de inyección,
+2. invalida alguna configuración del camino después de ese punto,
+3. sigue existiendo plan hasta la meta desde la última configuración válida.
 
-Empezar chico (0.06 × 0.14 × 0.18) alrededor del 60–75% del camino y agrandar
-hasta que invalide la trayectoria pero siga habiendo camino.
+Las tres se pueden verificar sin mover el robot, con `/check_state_validity` y
+`/plan_kinematic_path`, que es mucho más rápido que correr la demo entera.
 
 ### Otras cosas conocidas
 

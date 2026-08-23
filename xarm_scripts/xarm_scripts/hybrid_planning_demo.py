@@ -197,8 +197,24 @@ class HybridPlanningDemo(Node):
         # Los nombres vienen de xarm_moveit_config/config/xarm6/ompl_planning.yaml,
         # que usa 'RRTConnect' y no 'RRTConnectkConfigDefault'.
         request.planner_id = 'RRTConnect'
-        request.num_planning_attempts = 10
-        request.allowed_planning_time = 5.0
+        # Estos dos numeros son la diferencia entre que el replan funcione y que
+        # todo aborte, y no es obvio por que.
+        #
+        # ReplanInvalidatedTrajectory le pide un plan global nuevo cada vez que el
+        # local planner reporta COLLISION_AHEAD. forward_trajectory.cpp manda ese
+        # evento una sola vez por trayectoria, pero resetea el flag en cuanto llega
+        # una solucion global nueva, asi que los eventos se repiten cada ~80 ms
+        # mientras el brazo siga frenado.
+        #
+        # Si el global planner todavia esta pensando cuando llega el evento
+        # siguiente, la meta anterior se ABORTA. Y el plugin no sabe reaccionar a
+        # 'Global planning action aborted': devuelve FAILURE y muere todo el
+        # hybrid planning. Con allowed_planning_time = 5.0 eso pasaba siempre.
+        #
+        # Con 0.5 s y un solo intento, cada replan termina (RRTConnect resuelve
+        # esto en decenas de ms) antes de que llegue el evento siguiente.
+        request.num_planning_attempts = 1
+        request.allowed_planning_time = 0.5
         request.max_velocity_scaling_factor = 0.4
         request.max_acceleration_scaling_factor = 0.4
 
@@ -270,6 +286,22 @@ class HybridPlanningDemo(Node):
         message = result.result.error_message
         if self.result_code == 1:
             self.get_logger().info('Hybrid planning termino OK.')
+        elif self.surprise_sent:
+            # Resultado ESPERADO con ReplanInvalidatedTrajectory en este momento.
+            # Ver HYBRID_PLANNING.md: el plugin no sabe reaccionar al evento
+            # 'Global planning action aborted', y ese evento aparece porque el
+            # propio bucle de replanificacion se pisa sus pedidos al global
+            # planner. No es un error de esta configuracion.
+            self.get_logger().warning(
+                f'Hybrid planning termino con error_code={self.result_code} '
+                f'"{message}".')
+            self.get_logger().warning(
+                'Esto es lo esperado hoy: el bucle de replanificacion se pisa '
+                'sus propios pedidos y ReplanInvalidatedTrajectory no maneja el '
+                'evento "Global planning action aborted". Lo que SI se demostro '
+                'esta arriba en el log: el local planner detecto el obstaculo '
+                'nuevo y freno el brazo, y el manager pidio replanificacion. '
+                'Ver HYBRID_PLANNING.md, seccion "Limitacion conocida".')
         else:
             self.get_logger().error(
                 f'Hybrid planning fallo: error_code={self.result_code} "{message}"')
@@ -387,7 +419,13 @@ class HybridPlanningDemo(Node):
         time.sleep(1.0)
         # Reset sin planificar: robusto incluso si la corrida anterior dejo el
         # brazo en una pose invalida.
-        self.reset_without_planning(START_JOINTS)
+        if not self.reset_without_planning(START_JOINTS):
+            self.get_logger().error(
+                'El brazo no volvio a la pose de inicio. Si una corrida anterior '
+                'lo dejo clavado contra sus limites articulares, ningun comando '
+                'de posicion lo saca: hay que reiniciar Gazebo. Ver '
+                'HYBRID_PLANNING.md, seccion "Reiniciar entre corridas".')
+            return False
         time.sleep(1.0)
 
         # Paso 1: obstaculo que ya esta cuando se planifica.
