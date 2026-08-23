@@ -24,18 +24,15 @@ La arquitectura es toda plugins. Los que usa este ejemplo:
 
 | Interfaz | Plugin usado | Dónde se configura |
 |---|---|---|
-| Planner logic | `moveit_hybrid_planning/ReplanInvalidatedTrajectory` | `config/hybrid_planning/hybrid_planning_manager.yaml` |
+| Planner logic | `xarm_hybrid_planning/ReplanWhenIdle` (de este repo) | `config/hybrid_planning/hybrid_planning_manager.yaml` |
 | Global planner | `moveit_hybrid_planning/MoveItPlanningPipeline` | `config/hybrid_planning/global_planner.yaml` |
 | Trajectory operator | `moveit_hybrid_planning/SimpleSampler` | `config/hybrid_planning/local_planner.yaml` |
 | Local constraint solver | `moveit_hybrid_planning/ForwardTrajectory` | `config/hybrid_planning/local_planner.yaml` |
 
-El logic plugin es el interesante para la clase. Hay dos:
-
-- `SinglePlanExecution`: planifica una vez y ejecuta. Si se invalida, aborta.
-- `ReplanInvalidatedTrajectory`: cuando el local planner avisa, le pide al global
-  planner un plan nuevo **sin parar la ejecución**. Es el que hace visible el
-  comportamiento reactivo. Cambiar una línea del yaml y volver a correr es una
-  buena demo de por sí.
+El logic plugin es el interesante para la clase. Este ejemplo usa uno propio,
+`xarm_hybrid_planning/ReplanWhenIdle`, porque **ninguno de los dos que trae MoveIt
+cierra el ciclo reactivo acá**. Ver "Arreglo B" más abajo para el detalle, y la
+tabla de contraste para qué hace cada uno.
 
 ## Por qué el demo de MoveIt funciona y el nuestro no funcionaba
 
@@ -149,81 +146,79 @@ Esa última línea repitiéndose **es** el hybrid planning: el global planner
 volviendo a resolver mientras el local mantiene el robot quieto y seguro. Con
 `SinglePlanExecution` en lugar de `ReplanInvalidatedTrajectory`, ahí abortaría.
 
-## Estado: qué está verificado y qué no
+## Estado: funciona de punta a punta
 
-### Funciona y es repetible
-
-Medido en la simulación, dos corridas seguidas **sin reiniciar Gazebo**:
-
-- Los tres componentes cargan con sus plugins.
-- El `xarm6_joint_group_position_controller` se spawnea y se activa, y el
-  `xarm6_traj_controller` queda inactivo.
-- El reset del Paso 0 tarda ~0.3 s y converge siempre. Ya no hace falta reiniciar
-  Gazebo entre corridas: un controlador de posición se puede comandar de vuelta a
-  casa desde cualquier configuración.
-- Global plan → ejecución local → cambio de escena → el local planner lo detecta
-  (`Collision ahead, holding current position`) y **frena el brazo antes de
-  chocar** → el manager termina.
-- Determinista: 1 pedido de replanificación, ~10 s de punta a punta, sin bucles ni
-  timeouts.
-
-Eso ya es una demo válida de la arquitectura: se ve el planner global resolviendo,
-el local ejecutando a 100 Hz, y el local reaccionando a un cambio del mundo que el
-global no conocía.
-
-### Lo que no funciona: "replanifica y sigue"
-
-Ninguno de los dos planner logic plugins que trae MoveIt cierra el ciclo acá.
-
-**`SinglePlanExecution`** (el default de este ejemplo) termina con:
+El ciclo completo cierra: **obstáculo aparece → replanifica → llega a la meta**.
+Dos corridas seguidas sin reiniciar Gazebo, idénticas:
 
 ```
-'Single-Plan-Execution' plugin cannot handle events given as string.
+Pidiendo plan global (intento 1 de 30).
+>>> Salio la primera solucion global. Ahora cambia la escena...
+Pidiendo plan global (intento 2 de 30).
+Pidiendo plan global (intento 3 de 30).
+Hybrid planning termino OK.
 ```
 
-No sabe qué hacer con `LOCAL_PLANNER_STUCK`. Termina rápido y sin ensuciar, que
-es justo lo que se quiere para clase, pero el mensaje final es una limitación del
-plugin y no un "aborté porque cambió el entorno".
+El brazo llega a la meta con 0.022 rad de error total sobre las 6 articulaciones.
+Tres replanificaciones, ~10 s de punta a punta.
 
-**`ReplanInvalidatedTrajectory`** intenta replanificar, y se autolimita:
+Para que llegara ahí hicieron falta **dos arreglos más** además de la interfaz de
+control. Los dos son didácticos y vale la pena contarlos en clase.
 
-- **2548** pedidos de replanificación al global planner en 120 s, o sea ~21 por
-  segundo.
-- Cada pedido nuevo **preempta** el anterior. Con `allowed_planning_time = 0.5`,
-  cada uno se corta a los ~47 ms: **ninguno llega a terminar**, así que nunca
-  aparece una trayectoria nueva y el local planner se queda frenado para siempre
-  (10390 `Collision ahead` en esa corrida, y timeout).
+### Arreglo A: el global planner no veía la escena
 
-Para probarlo, cambiar una línea de `hybrid_planning_manager.yaml`:
+En la config de `moveit_cpp` los dos nombres de tópico están **al revés** de lo
+que uno espera, y el comentario del config de referencia de MoveIt lo dice
+explícito:
 
 ```yaml
-planner_logic_plugin_name: "moveit_hybrid_planning/ReplanInvalidatedTrajectory"
+planning_scene_monitor_options:
+  publish_planning_scene_topic: "/monitored_planning_scene"    # al que SE SUSCRIBE
+  monitored_planning_scene_topic: "/global_planner/planning_scene"  # el que PUBLICA
 ```
 
-Es interesante mostrarlo en clase justamente por eso: se ven los pedidos de
-replanificación en el log, y se ve por qué un lazo reactivo necesita control de
-flujo.
+Con `publish_planning_scene_topic: "/planning_scene"`, el global planner **no veía
+los objetos** que la demo agrega por el servicio `/apply_planning_scene`.
+Planificaba derecho a través de las placas, terminaba en ~40 ms, y el local
+planner (que sí las ve, por `startSceneMonitor`) rechazaba la trayectoria una y
+otra vez. Bucle infinito sin que nada reportara error.
 
-### Descartado como causa, con evidencia
+Síntoma para reconocerlo: el global planner "resuelve" sospechosamente rápido y
+siempre, mientras el local planner nunca acepta la trayectoria.
 
-- **La geometría de los obstáculos.** Se probaron 8 candidatos con
-  `/check_state_validity` y `/plan_kinematic_path` de move_group, sin mover el
-  robot. Con la escena post-cambio (las dos placas, sin la estática) existe plan
-  desde el estado donde el brazo queda frenado hasta la meta, y los dos estados
-  son válidos. Incluso con las tres placas a la vez existe plan.
-- **`local_planning_frequency`.** Se probó 10 Hz y 50 Hz además de 100 Hz.
-- **`allowed_planning_time`.** 5.0 s y 0.5 s.
+### Arreglo B: el lazo reactivo necesita control de tasa, no sólo exclusión mutua
 
-### Cómo cerrarlo de verdad
+El plugin propio (`xarm_hybrid_planning/ReplanWhenIdle`, paquete
+`xarm_hybrid_planning` de este repo) hace tres cosas que
+`ReplanInvalidatedTrajectory` no hace:
 
-Escribir un planner logic plugin propio contra `PlannerLogicInterface`, que:
+1. **Exclusión mutua**: no pide un plan global si ya hay uno en vuelo. Sin esto,
+   cada evento del local planner dispara un pedido que preempta al anterior y
+   ninguno termina (medido: 2548 pedidos en 120 s con el plugin original).
+2. **Límite de tasa**: 500 ms mínimo entre pedidos. La exclusión mutua sola no
+   alcanza, porque el global planner resuelve en ~40 ms y `LOCAL_PLANNER_STUCK` se
+   re-arma cada pocas decenas de ms mientras el brazo esté quieto
+   (`forward_trajectory.cpp` resetea `num_iterations_stuck_` al emitirlo). Sin
+   límite de tasa se gastan 10 reintentos en 1.3 s **aunque el brazo esté
+   avanzando bien**.
+3. **Un aborto de la acción global no es fatal** una vez que la ejecución
+   arrancó: casi siempre es un pedido nuestro preemptando al anterior. Y ningún
+   evento desconocido aborta el hybrid planning, a diferencia de los dos plugins
+   de MoveIt.
 
-1. no pida un plan global nuevo si ya hay uno en vuelo, y
-2. no trate los eventos que no conoce como fatales.
+Más un tope de 30 reintentos para que la demo termine si de verdad no hay salida.
 
-Son ~40 líneas de C++ más un `pluginlib` export. Es la única forma de que el
-ciclo "obstáculo aparece → replanifica → llega a la meta" cierre con esta
-arquitectura.
+### Los dos plugins de MoveIt, para contrastar en clase
+
+Cambiando una línea de `hybrid_planning_manager.yaml`:
+
+| Plugin | Qué pasa |
+|---|---|
+| `xarm_hybrid_planning/ReplanWhenIdle` | cierra el ciclo, 3 replanificaciones, `termino OK` |
+| `moveit_hybrid_planning/SinglePlanExecution` | no replanifica; termina con `cannot handle events given as string` al recibir `LOCAL_PLANNER_STUCK` |
+| `moveit_hybrid_planning/ReplanInvalidatedTrajectory` | se autolimita: ~21 pedidos/s, ninguno termina, y el primer aborto mata todo |
+
+Es una buena demo de por qué un lazo reactivo necesita control de flujo.
 
 ### Cómo ajustar el obstáculo sorpresa
 

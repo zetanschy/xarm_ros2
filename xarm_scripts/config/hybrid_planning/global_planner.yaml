@@ -9,9 +9,20 @@ planning_scene_monitor_options:
   robot_description: "robot_description"
   joint_state_topic: "/joint_states"
   attached_collision_object_topic: "/moveit_cpp/planning_scene_monitor"
-  # Escucha el scene de move_group, asi ve los objetos que agrega el demo.
-  publish_planning_scene_topic: "/planning_scene"
-  monitored_planning_scene_topic: "/monitored_planning_scene"
+  # CUIDADO con estos dos nombres: en moveit_cpp estan al reves de lo que uno
+  # espera, y el comentario del config de referencia de MoveIt lo dice explicito.
+  #
+  #   publish_planning_scene_topic   -> el topico al que moveit_cpp SE SUSCRIBE
+  #   monitored_planning_scene_topic -> el topico que moveit_cpp PUBLICA
+  #
+  # Por eso el que tiene que apuntar al scene de move_group es el primero. Con
+  # publish_planning_scene_topic = "/planning_scene", el global planner no veia
+  # los objetos que la demo agrega por el servicio /apply_planning_scene:
+  # planificaba derecho a traves de las placas, terminaba en milisegundos, y el
+  # local planner (que si las ve) rechazaba la trayectoria una y otra vez. Bucle
+  # infinito sin que nada fallara aparentemente.
+  publish_planning_scene_topic: "/monitored_planning_scene"
+  monitored_planning_scene_topic: "/global_planner/planning_scene"
   wait_for_initial_state_timeout: 10.0
 
 planning_pipelines:

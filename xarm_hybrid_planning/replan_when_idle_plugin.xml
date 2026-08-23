@@ -1,0 +1,12 @@
+<library path="replan_when_idle">
+  <class name="xarm_hybrid_planning/ReplanWhenIdle"
+         type="xarm_hybrid_planning::ReplanWhenIdle"
+         base_class_type="moveit::hybrid_planning::PlannerLogicInterface">
+    <description>
+      Logica de hybrid planning que replanifica cuando la trayectoria se invalida,
+      pero solo si no hay una planificacion global en vuelo, y que no trata como
+      fatal un aborto de la accion global. Variante de
+      moveit_hybrid_planning/ReplanInvalidatedTrajectory.
+    </description>
+  </class>
+</library>

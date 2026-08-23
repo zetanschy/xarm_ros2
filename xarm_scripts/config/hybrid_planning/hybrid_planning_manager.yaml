@@ -7,4 +7,9 @@
 #       cuando el local planner reporta que la trayectoria dejo de ser valida,
 #       vuelve a pedirle un plan al global planner sin parar la ejecucion.
 #       Este es el que hace visible el comportamiento reactivo en clase.
-planner_logic_plugin_name: "moveit_hybrid_planning/SinglePlanExecution"
+# xarm_hybrid_planning/ReplanWhenIdle (paquete xarm_hybrid_planning de este repo)
+#   Variante de ReplanInvalidatedTrajectory que arregla las dos cosas que impiden
+#   que el ciclo reactivo cierre: no pide un plan global si ya hay uno en vuelo, y
+#   no trata como fatal un 'Global planning action aborted'. Corta a los 10
+#   reintentos para que la demo termine siempre.
+planner_logic_plugin_name: "xarm_hybrid_planning/ReplanWhenIdle"

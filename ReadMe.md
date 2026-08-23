@@ -102,8 +102,10 @@ ros2 launch xarm_scripts xarm_scripts.launch.py script:=pick_and_place
 ### Hybrid Planning
 
 Arquitectura de hybrid planning de MoveIt 2 (global planner + local planner +
-manager) sobre el xArm6. Ver `xarm_scripts/HYBRID_PLANNING.md` para el detalle de
-la arquitectura, los plugins y como ajustar el obstaculo del demo.
+manager) sobre el xArm6, con un planner logic plugin propio
+(`xarm_hybrid_planning/ReplanWhenIdle`) que cierra el ciclo reactivo: aparece un
+obstaculo a mitad del movimiento, se replanifica, y el brazo llega a la meta. Ver
+`xarm_scripts/HYBRID_PLANNING.md`.
 
 Launch simulation:
 
