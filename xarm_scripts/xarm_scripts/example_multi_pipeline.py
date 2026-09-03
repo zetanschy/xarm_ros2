@@ -18,6 +18,7 @@ from moveit.planning import MoveItPy, PlanRequestParameters
 from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 from ament_index_python import get_package_share_directory
 from geometry_msgs.msg import PoseStamped
+import time
 import traceback
 
 
@@ -211,12 +212,16 @@ def main():
         # Example 4: Compare different planners within OMPL pipeline
         logger.info("\n--- Example 4: Comparing Different OMPL Planners ---")
         
-        # Common OMPL planners to try
+        # Nombres tal como los declara config/xarm6/ompl_planning.yaml.
+        # OJO: el sufijo "kConfigDefault" es la convencion de MoveIt 1 y NO existe
+        # en este repo; si se usa, OMPL avisa "Cannot find planning configuration"
+        # y cae silenciosamente a RRTConnect, con lo que los cuatro planners
+        # resultan ser el mismo y la comparacion no compara nada.
         ompl_planners = [
-            "RRTConnectkConfigDefault",
-            "RRTstarkConfigDefault",
-            "PRMkConfigDefault",
-            "LBKPIECEkConfigDefault",
+            "RRTConnect",
+            "RRTstar",
+            "PRM",
+            "LBKPIECE",
         ]
         
         xarm_arm.set_start_state_to_current_state()
@@ -231,14 +236,19 @@ def main():
             plan_parameters.planning_time = 5.0
             plan_parameters.planning_attempts = 1
             
+            # Medir el tiempo de PLANIFICACION: trajectory.duration es otra cosa
+            # (lo que tarda el robot en ejecutar la trayectoria, no en encontrarla).
+            t_start = time.perf_counter()
             plan_result = xarm_arm.plan(plan_parameters)
+            planning_time = time.perf_counter() - t_start
             
             if plan_result:
                 logger.info(f"✓ Planner '{planner_id}' succeeded!")
+                logger.info(f"  Planning time: {planning_time:.4f}s   <-- cuanto tardo en PLANIFICAR")
                 logger.info(f"  Waypoints: {len(plan_result.trajectory)}")
-                logger.info(f"  Duration: {plan_result.trajectory.duration:.4f}s")
+                logger.info(f"  Trajectory duration: {plan_result.trajectory.duration:.4f}s   <-- cuanto tarda en EJECUTARSE")
             else:
-                logger.warn(f"✗ Planner '{planner_id}' failed")
+                logger.warn(f"✗ Planner '{planner_id}' failed after {planning_time:.4f}s")
         
         # Example 5: Using plan_and_execute helper function
         logger.info("\n--- Example 5: Using plan_and_execute Helper ---")
@@ -248,7 +258,7 @@ def main():
         # Create plan parameters
         plan_parameters = PlanRequestParameters(xarm_moveit)
         plan_parameters.planning_pipeline = "ompl"
-        plan_parameters.planner_id = "RRTConnectkConfigDefault"
+        plan_parameters.planner_id = "RRTConnect"
         plan_parameters.planning_time = 5.0
         
         plan_and_execute(xarm_moveit, xarm_arm, logger, plan_parameters)

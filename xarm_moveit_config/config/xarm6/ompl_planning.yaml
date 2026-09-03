@@ -1,5 +1,9 @@
 xarm6:
   default_planner_config: RRTConnect
+  # Requerido por la familia KPIECE/SBL (LBKPIECE, KPIECE, BKPIECE, SBL, PDST,
+  # STRIDE, ProjEST): sin una proyeccion del espacio de estados, OMPL aborta con
+  # "No projection evaluator specified" aunque el nombre del planner sea correcto.
+  projection_evaluator: joints(joint1,joint2)
   planner_configs:
     - SBL
     - EST
