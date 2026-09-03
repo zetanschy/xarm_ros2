@@ -19,6 +19,7 @@ from ament_index_python import get_package_share_directory
 from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
 from geometry_msgs.msg import Pose, PoseStamped
+from xarm_scripts.moveit_utils import sync_scene_to_move_group
 import traceback
 import time
 
@@ -139,11 +140,23 @@ def main():
         logger.info("Step 3: Adding Collision Object to Planning Scene")
         logger.info("="*60)
         
+        # (a) La escena DE ESTE SCRIPT. Con esto ya basta para PLANIFICAR:
+        #     MoveItPy lleva su propia copia del planning scene dentro del proceso.
         with planning_scene_monitor.read_write() as scene:
             scene.apply_collision_object(collision_object)
             scene.current_state.update()
-        
-        logger.info("✓ Collision object added to planning scene")
+        logger.info("✓ Collision object added to the SCRIPT's planning scene")
+
+        # (b) La escena DE MOVE_GROUP, que es la que RViz dibuja y la que usan
+        #     /get_planning_scene y /check_state_validity. Es OTRO objeto, en otro
+        #     proceso: lo de (a) no llega hasta aqui solo. Sin esta llamada el plan
+        #     esquiva la caja igual, pero la caja es invisible para todos los demas.
+        if sync_scene_to_move_group(node, collision_objects=[collision_object]):
+            logger.info("✓ Collision object synced to move_group (visible in RViz)")
+        else:
+            logger.warn("✗ Could not sync to move_group: it will plan around the box, "
+                        "but the box will not appear in RViz")
+
         time.sleep(0.5)  # Give time for the scene to update
         
         # ====================================================================
