@@ -44,7 +44,15 @@ for repo in moveit2/moveit2.repos $(f="moveit2/moveit2_$ROS_DISTRO.repos"; test 
 rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y
 cd ..
 colcon build --event-handlers desktop_notification- status- --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# If the build dies on its own or the
+# machine freezes, it is RAM, not your setup: colcon builds several packages at once
+# and each one spawns N compilers. Retry one at a time (slower, but it fits):
+MAKEFLAGS="-j1" colcon build --executor sequential --event-handlers desktop_notification- status- --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
+
+> The sequential build resumes whatever already compiled, so there is no need to
+> delete `build/` and start over.
 
 ### Build Repository
 
