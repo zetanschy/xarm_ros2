@@ -67,6 +67,7 @@ def launch_setup(context, *args, **kwargs):
     add_gripper = LaunchConfiguration('add_gripper', default=True)
     mode = LaunchConfiguration('mode').perform(context)
     move_target = LaunchConfiguration('move_target').perform(context) in ('True', 'true')
+    user_node = LaunchConfiguration('node').perform(context).strip()
 
     moveit_config = (
         MoveItConfigsBuilder(
@@ -154,7 +155,7 @@ def launch_setup(context, *args, **kwargs):
             # hace nada. Y sin comas: el formato de texto de protobuf no las usa
             # como separador, y con ellas se pierden campos.
             '  --req \'name: "aruco_cube" '
-            '     position { x: 0.2 y: -0.8 z: 1.138 } '
+            '     position { x: 0.2 y: -0.8 z: 1.096 } '
             "     orientation { x: 0 y: 0 z: 0 w: 1 }' > /dev/null 2>&1 || true; "
             'sleep 2; '
             'echo "escena reseteada"; '
@@ -283,6 +284,19 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'mode': mode}, use_sim_time],
         ))
 
+    # El nodo del alumno va ULTIMO, y solo si se pidio con node:=<ejecutable>.
+    # Sirve para no tener que abrir una tercera terminal. Tiene que arrancar
+    # despues del servo: su llamada a /servo_node/start_servo espera 15 s, que
+    # alcanza para que el servo termine de levantar, pero al reves no funciona.
+    if user_node:
+        after_switch.append(Node(
+            package='xarm_scripts',
+            executable=user_node,
+            name=user_node,
+            output='screen',
+            parameters=[use_sim_time],
+        ))
+
     def continue_if_ok(next_actions):
         """Sigue con el paso siguiente solo si el anterior salio bien.
 
@@ -319,6 +333,11 @@ def generate_launch_description():
             description='velocidad del marcador: static | slow | medium | fast'),
         DeclareLaunchArgument(
             'move_target', default_value='true',
-            description='false = no lanza el nodo que mueve el marcador'),
+            description='false = no lanza el nodo que mueve el robot movil'),
+        DeclareLaunchArgument(
+            'node', default_value='',
+            description='ejecutable de xarm_scripts a lanzar cuando el servo este '
+                        'listo, p.ej. node:=aruco_servo. Vacio = no lanza nada, y '
+                        'el nodo se corre a mano en otra terminal.'),
         OpaqueFunction(function=launch_setup),
     ])

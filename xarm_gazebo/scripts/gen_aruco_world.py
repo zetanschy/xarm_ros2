@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Genera xarm_gazebo/worlds/table_aruco.world (Tarea 2 - visual servoing).
 
-La escena: un robot movil chico recorre un rectangulo sobre la mesa llevando
+La escena: un Avular Origin One recorre un rectangulo sobre la mesa llevando
 encima un cubo con un marcador ArUco. Cuando termina su recorrido se estaciona, y
 recien ahi el brazo baja y le saca el cubo de encima.
 
@@ -57,12 +57,17 @@ GROUND_CLEARANCE = 0.0455 * SCALE
 WHEEL_Z = 0.056 * SCALE          # altura del eje respecto del cuerpo
 BODY_LEN = 0.656 * SCALE
 BODY_WID = 0.408 * SCALE
-BODY_HEIGHT = 0.26327 * SCALE    # extension en z de la malla del cuerpo
+# Altura de la CUBIERTA, no del punto mas alto de la malla. Son cosas distintas y
+# confundirlas deja el cubo flotando: la malla llega a 263 mm, pero eso es el
+# mastil del lidar, que esta atras (x de -222 a -143 mm). Analizando los vertices,
+# el centro del robot, que es donde viaja el cubo, es plano a 124 mm sobre una
+# cubierta de 623 x 361 mm. Ese es el numero que importa.
+DECK_LOCAL = 0.124 * SCALE
 
-# El cuerpo apoya a GROUND_CLEARANCE sobre la mesa; su cara de arriba es la
-# cubierta donde viaja el cubo.
+# El origen de la malla es el frame main_body del URDF original, que esta a
+# GROUND_CLEARANCE del piso. Todo lo demas se mide desde ahi, igual que el URDF.
 BODY_BOTTOM = TABLE_SURFACE + GROUND_CLEARANCE
-BODY_TOP = BODY_BOTTOM + BODY_HEIGHT
+BODY_TOP = BODY_BOTTOM + DECK_LOCAL
 
 # Recorrido rectangular, en coordenadas del MUNDO y respecto del centro (0.2, -0.8).
 #
@@ -92,7 +97,7 @@ def build_world():
     marker_side = CELLS * CELL
     cube_top = CUBE_Z / 2.0
     cube_z = BODY_TOP + CUBE_Z / 2.0
-    chassis_z = (BODY_BOTTOM + BODY_TOP) / 2.0 - MODEL_Z
+    mesh_origin_z = BODY_BOTTOM - MODEL_Z
 
     return f'''<?xml version="1.0" ?>
 <!-- GENERADO por xarm_gazebo/scripts/gen_aruco_world.py, no editar a mano. -->
@@ -122,9 +127,9 @@ def build_world():
 
     <!-- Robot movil que transporta el cubo.
 
-         Es un robot OMNI: se desplaza en X e Y sin girar, que es justo lo que
-         permiten las dos juntas prismaticas. Las ruedas son decorativas y van a
-         45 grados para que se lea como una base omni.
+         Es un Avular Origin One, con ruedas mecanum: se desplaza en X e Y sin
+         girar, que es justo lo que permiten las dos juntas prismaticas. Las
+         ruedas son solo visuales y no giran.
 
          No se simula la traccion a proposito. Con ruedas motrices el recorrido
          depende del agarre, y una patinada deja al robot fuera del alcance del
@@ -149,7 +154,7 @@ def build_world():
       </joint>
 
       <link name="x_carriage">
-        <pose>0 0 {chassis_z:.4f} 0 0 0</pose>
+        <pose>0 0 {mesh_origin_z:.4f} 0 0 0</pose>
         <inertial>
           <mass>0.1</mass>
           <inertia><ixx>1e-4</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-4</iyy><iyz>0</iyz><izz>1e-4</izz></inertia>
@@ -170,7 +175,7 @@ def build_world():
       </joint>
 
       <link name="chassis">
-        <pose>0 0 {chassis_z:.4f} 0 0 0</pose>
+        <pose>0 0 {mesh_origin_z:.4f} 0 0 0</pose>
         <inertial>
           <mass>2.0</mass>
           <inertia><ixx>0.01</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.01</iyy><iyz>0</iyz><izz>0.01</izz></inertia>
@@ -179,7 +184,6 @@ def build_world():
              con el frame main_body del URDF original, que esta a
              GROUND_CLEARANCE del piso. -->
         <visual name="body">
-          <pose>0 0 {-BODY_HEIGHT / 2:.4f} 0 0 0</pose>
           <geometry>
             <mesh>
               <uri>model://avular_origin/meshes/body.obj</uri>
@@ -190,10 +194,13 @@ def build_world():
 {_wheels()}
         <!-- La colision es una caja, no la malla: el cubo solo necesita apoyarse
              en una cubierta plana, y una malla de 125 mil vertices como geometria
-             de colision es un costo enorme para nada. La caja llega justo hasta
-             la cara de arriba del cuerpo. -->
+             de colision es un costo enorme para nada. La caja llega justo hasta la
+             CUBIERTA (124 mm de la malla), no hasta el punto mas alto: si llegara
+             hasta arriba del todo, el cubo quedaria apoyado a la altura del mastil
+             del lidar, flotando sobre la cubierta. -->
         <collision name="deck">
-          <geometry><box><size>{BODY_LEN:.4f} {BODY_WID:.4f} {BODY_HEIGHT:.4f}</size></box></geometry>
+          <pose>0 0 {DECK_LOCAL / 2:.4f} 0 0 0</pose>
+          <geometry><box><size>{BODY_LEN:.4f} {BODY_WID:.4f} {DECK_LOCAL:.4f}</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>1000.0</mu><mu2>1000.0</mu2><slip1>0.0</slip1><slip2>0.0</slip2></ode>
@@ -312,7 +319,7 @@ def _wheels():
     Las rotaciones salen de componer las dos que trae el URDF original: la del
     joint (rpy -1.5707 0 0) con la del visual (rpy 0 +-1.5707 0).
     """
-    z = -BODY_HEIGHT / 2.0 + WHEEL_Z
+    z = WHEEL_Z
     out = []
     for sx, fr in ((1, 'f'), (-1, 'r')):
         for sy, lr in ((1, 'l'), (-1, 'r')):
