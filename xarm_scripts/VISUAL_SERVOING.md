@@ -9,10 +9,11 @@ verificado corriendo, no deducido.
 | Archivo | Qué es |
 |---|---|
 | `xarm_description/urdf/camera/wrist_camera.urdf.xacro` | Cámara de muñeca, coaxial con `link_tcp` |
-| `xarm_gazebo/scripts/gen_aruco_world.py` | Genera el mundo: robot móvil omni + cubo con ArUco dibujado con geometría |
+| `xarm_gazebo/scripts/gen_aruco_world.py` | Genera el mundo: Avular Origin + cubo con ArUco dibujado con geometría |
 | `xarm_gazebo/worlds/table_aruco.world` | **Generado** — no editar a mano |
+| `xarm_gazebo/models/avular_origin/` | Mallas del Avular Origin One |
 | `xarm_scripts/config/visual_servo/xarm6_servo.yaml` | Config de MoveIt Servo para Gazebo |
-| `xarm_scripts/launch/visual_servo.launch.py` | Reset + pose de observación + cambio de controlador + servo + marcador |
+| `xarm_scripts/launch/visual_servo.launch.py` | Reset + pose de observación + cambio de controlador + servo + robot + (opcional) el nodo del alumno |
 | `xarm_scripts/xarm_scripts/aruco_target_mover.py` | Conduce el robot móvil: rectángulo y estacionamiento |
 
 Se tocaron además `xarm_device_macro.xacro`, `xarm_device.urdf.xacro`,
@@ -28,9 +29,13 @@ contiene `aruco`.
 ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py \
     world:=table_aruco.world add_gripper:=true
 
-# Terminal 2
-ros2 launch xarm_scripts visual_servo.launch.py mode:=medium
+# Terminal 2 (lanzala enseguida; espera sola a la simulacion)
+ros2 launch xarm_scripts visual_servo.launch.py mode:=medium node:=aruco_servo
 ```
+
+`node:=<ejecutable>` arranca ese nodo de `xarm_scripts` cuando el servo ya esta
+listo, para no necesitar una tercera terminal. Sin ese argumento el launch deja
+todo montado y el nodo se corre aparte.
 
 `mode`: `static` | `slow` | `medium` | `fast`. Con `move_target:=false` no se
 lanza el nodo que mueve el marcador.
@@ -39,12 +44,11 @@ lanza el nodo que mueve el marcador.
 
 ### La pose de observación se subió con el robot
 
-Con el Avular el marcador viaja mucho más alto que antes (cubierta en 1.108 contra
-la mesa en 1.015). La pose de observación vieja dejaba la cámara a solo 9 cm del
-marcador: cubría menos mesa que el propio recorrido, y el marcador se salía de
-cuadro. Ahora el TCP va a 0.265 (link6 en 0.437), con la cámara ~0.18 m sobre el
-marcador. Si se cambia la altura del robot o del objeto, esta pose hay que
-recalcularla.
+Con el Avular el marcador viaja más alto que sobre la mesa (cubierta en 1.0658
+contra la mesa en 1.015). Ahora el TCP va a 0.265 (link6 en 0.437), con la cámara
+unos 0.22 m sobre el marcador. Verificado: desde las cuatro esquinas del
+rectángulo el marcador se sigue detectando. Si se cambia la altura del robot o del
+objeto, esta pose hay que recalcularla.
 
 ### La cámara es coaxial con el TCP, no va al costado
 
@@ -111,11 +115,11 @@ comandos alternando sin efecto. Como los tópicos se ven perfectos, cuesta darse
 cuenta.
 
 **El rectángulo entra entero en el campo de visión.** Es la medida que hace que la
-tarea sea posible: desde la pose de observación la cámara cubre ±0.164 m en
-horizontal y ±0.121 en vertical a la altura del marcador, contra ±0.08 y ±0.06 de
-recorrido. Con el riel anterior (±0.12 m) el marcador se salía de cuadro al
-descender y el brazo se quedaba sin referencia. Verificado: 12+ s de seguimiento
-continuo sin una sola pérdida.
+tarea sea posible: desde la pose de observación la cámara cubre ±0.207 m en
+horizontal y ±0.155 en vertical a la altura del marcador, contra ±0.11 y ±0.08 de
+recorrido. Con el riel anterior el marcador se salía de cuadro al descender y el
+brazo se quedaba sin referencia. Verificado: el recorrido entero, tres vueltas,
+con **cero pérdidas** de marcador.
 
 ### La superficie de la mesa está en 1.015, no en 1.00
 
@@ -173,6 +177,22 @@ En clase se relanza mucho. Dos cosas lo hacían fallar y están resueltas:
 El orden del reset importa: gripper primero, después el carro al centro, y recién
 ahí el cubo. Teletransportar el cubo con el carro en un extremo lo deja fuera de
 la bandeja.
+
+## Bloquear el callback congela el reloj del nodo
+
+Con `use_sim_time` el reloj del nodo se alimenta del tópico `/clock`, y ese tópico
+se procesa en el ejecutor. Un `time.sleep()` dentro de un callback bloquea el
+ejecutor, así que `get_clock().now()` **devuelve siempre el mismo valor** mientras
+dure el bloqueo. Los `TwistStamped` salen todos con la misma estampa vieja, el
+servo los considera rancios por `incoming_command_timeout`, y frena.
+
+El síntoma no apunta a la causa: el brazo cierra el gripper y después sube 5 mm en
+vez de 20 cm. Y corriendo el mismo nodo a mano sin `use_sim_time` funciona, porque
+ahí el reloj es el del sistema y avanza aunque el ejecutor esté parado. O sea que
+el bug aparece **solo** cuando el nodo se lanza desde el launch.
+
+La solución de referencia tiene toda la secuencia final (cerrar, asentar, subir)
+como estados del mismo timer, sin un solo `sleep` bloqueante.
 
 ## El agarre: por qué el cubo se resbalaba
 
@@ -271,7 +291,9 @@ Verificado corriendo, en este orden:
   sigue detectando a 68 px.
 - Seguimiento durante el rectángulo completo de 220 × 160 mm: recorrido medido
   0.222 m y **cero pérdidas de marcador** en toda la corrida.
-- Agarre y levantamiento del cubo estacionado: 88 mm, y se queda arriba.
+- Agarre y levantamiento del cubo estacionado: 87 mm, y se queda arriba.
+- El flujo de dos terminales (`node:=aruco_servo`) corre entero: el launch levanta
+  servo, robot y nodo, y la corrida termina con el cubo en alto.
 - Relanzar la Terminal 2 sin reiniciar Gazebo deja el brazo otra vez en
   `(-0.300, -0.400, 0.178)` y el cubo sobre el robot.
 
