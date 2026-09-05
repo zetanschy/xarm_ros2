@@ -1,0 +1,13 @@
+<library path="scene_syncing_pipeline">
+  <class name="xarm_hybrid_planning/SceneSyncingPipeline"
+         type="xarm_hybrid_planning::SceneSyncingPipeline"
+         base_class_type="moveit::hybrid_planning::GlobalPlannerInterface">
+    <description>
+      Igual que moveit_hybrid_planning/MoveItPlanningPipeline, pero pide la escena
+      completa a move_group (/get_planning_scene) antes de cada plan. MoveItCpp
+      nunca llama a requestPlanningSceneState, asi que la escena del global planner
+      se arma solo con los diffs que alcance a recibir y no se recupera de una
+      actualizacion perdida.
+    </description>
+  </class>
+</library>

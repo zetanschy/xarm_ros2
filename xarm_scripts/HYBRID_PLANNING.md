@@ -146,7 +146,13 @@ Esa última línea repitiéndose **es** el hybrid planning: el global planner
 volviendo a resolver mientras el local mantiene el robot quieto y seguro. Con
 `SinglePlanExecution` en lugar de `ReplanInvalidatedTrajectory`, ahí abortaría.
 
-## Estado: funciona, pero es una lotería (~2 de 3)
+## Estado: cerrado (5 de 5)
+
+Lo que sigue documenta el camino: cómo se veía el problema, qué diagnóstico
+estaba mal, y cuál resultó ser la causa. El arreglo está en la sección "La causa
+real: MoveItCpp nunca pide la escena".
+
+## Cómo se veía antes: una lotería (~2 de 3)
 
 El ciclo completo **sí cierra**: obstáculo aparece → replanifica → llega a la meta
 con 0.022 rad de error. Pero no siempre. Medido con una placa sorpresa, tres
@@ -197,10 +203,44 @@ Descartado como causa: el warning `Cannot find planning configuration for group
 así que no discrimina. Y la inversión de nombres de tópico del Arreglo A está bien
 aplicada.
 
-Lo próximo a mirar es por qué el planning scene monitor del global planner a veces
-no tiene las placas: probablemente una carrera entre el `/apply_planning_scene` de
-la demo y la suscripción del monitor a `/monitored_planning_scene`, no nada del
-operador de trayectoria.
+Y sí: el problema estaba en el planning scene monitor del global planner. Ver la
+sección siguiente.
+
+### La causa real: MoveItCpp nunca pide la escena, solo escucha diffs
+
+`moveit_hybrid_planning/MoveItPlanningPipeline` arma su `MoveItCpp`, y con él un
+`PlanningSceneMonitor` propio. Ese monitor se suscribe a `/monitored_planning_scene`
+y a `/collision_object`, pero **`MoveItCpp` nunca llama a
+`requestPlanningSceneState()`** (se ve en `moveit_cpp.cpp`, líneas 100-110: hay
+`startStateMonitor`, `startPublishingPlanningScene`, `startSceneMonitor` y
+`startWorldGeometryMonitor`, y ningún pull).
+
+O sea: la escena del global planner se construye **solo** con los diffs que
+alcance a recibir. Si se pierde uno —por orden de suscripción, por QoS volátil, por
+lo que sea— no hay nada que vuelva a poner las dos escenas en fase, y planifica
+para siempre contra un mundo viejo. Eso explica exactamente lo medido: el mismo
+plan corto 27 veces, sin variación, mientras el local planner sí ve las placas.
+
+**El arreglo:** `xarm_hybrid_planning/SceneSyncingPipeline`, un global planner
+igual al de MoveIt pero que llama a `requestPlanningSceneState()` antes de cada
+plan. Pide la escena completa por el servicio `/get_planning_scene` de move_group;
+es síncrono y no depende de haber recibido ningún diff. No se pudo heredar de
+`MoveItPlanningPipeline` porque su `moveit_cpp_` es privado, así que son unas 60
+líneas repetidas más el pull.
+
+Medido, cinco corridas seguidas después del cambio:
+
+```
+corrida 5: OK (3 intentos)      corrida 8: OK (5 intentos)
+corrida 6: OK (2 intentos)      corrida 9: OK (3 intentos)
+corrida 7: OK (3 intentos)
+```
+
+**5 de 5**, contra el 2 de 3 de antes. Y ninguna se acercó al tope de 30
+reintentos: el peor caso fueron 5.
+
+Con `sync_scene_before_plan: false` en `global_planner.yaml` vuelve al
+comportamiento original, que sirve para mostrar la diferencia en clase.
 
 ### Por qué SimpleSampler puede quedarse clavado (mecanismo real, pero no el que falla acá)
 

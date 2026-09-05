@@ -1,6 +1,20 @@
 # Global planner: resuelve el problema completo, sin restriccion de tiempo real.
 # Por defecto usa el planning pipeline normal de MoveIt (OMPL).
-global_planner_name: "moveit_hybrid_planning/MoveItPlanningPipeline"
+# NO es el MoveItPlanningPipeline de MoveIt. Ese arma su MoveItCpp y con el un
+# PlanningSceneMonitor propio que se suscribe a los diffs, pero MoveItCpp nunca
+# llama a requestPlanningSceneState(): la escena del global planner se construye
+# SOLO con los diffs que alcance a recibir, y de una actualizacion perdida no se
+# recupera nunca.
+#
+# Sintoma medido: cuando el demo falla, el global planner devuelve 27 veces el
+# mismo plan corto que va derecho al obstaculo, mientras que cuando sale bien
+# devuelve rodeos de 25 a 74 waypoints. Planifica como si las placas no existieran.
+#
+# SceneSyncingPipeline pide la escena completa por /get_planning_scene antes de
+# cada plan. Con sync_scene_before_plan: false se comporta como el original, util
+# para mostrar la diferencia en clase.
+global_planner_name: "xarm_hybrid_planning/SceneSyncingPipeline"
+sync_scene_before_plan: true
 
 # El global planner es un moveit_cpp, asi que lleva su propio planning scene
 # monitor con los parametros habituales.
