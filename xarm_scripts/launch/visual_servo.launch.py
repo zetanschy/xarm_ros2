@@ -289,13 +289,30 @@ def launch_setup(context, *args, **kwargs):
     # despues del servo: su llamada a /servo_node/start_servo espera 15 s, que
     # alcanza para que el servo termine de levantar, pero al reves no funciona.
     if user_node:
-        after_switch.append(Node(
+        # Si el nodo no arranca (tipico: falta declararlo en setup.py, o quedo un
+        # ejecutable viejo instalado de otra rama y muere con StopIteration), hay
+        # que decirlo fuerte. Sin esto el nodo se cae solo, el launch sigue tan
+        # contento, y lo unico que se ve es un brazo quieto en la pose de
+        # observacion, que no sugiere nada.
+        node_action = Node(
             package='xarm_scripts',
             executable=user_node,
             name=user_node,
             output='screen',
             parameters=[use_sim_time],
-        ))
+        )
+        after_switch.append(node_action)
+        after_switch.append(RegisterEventHandler(event_handler=OnProcessExit(
+            target_action=node_action,
+            on_exit=lambda event, context: [LogInfo(msg=(
+                '\n'
+                '==========================================================\n'
+                f'El nodo "{user_node}" termino con codigo {event.returncode}.\n'
+                'Si fue de entrada, revisa que este declarado en el setup.py de\n'
+                'xarm_scripts y que hayas recompilado. Un ejecutable instalado\n'
+                'de otra rama sin declarar da StopIteration.\n'
+                '=========================================================='))]
+            if event.returncode != 0 else [])))
 
     def continue_if_ok(next_actions):
         """Sigue con el paso siguiente solo si el anterior salio bien.
