@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<!-- Placeholder. El robot se define inline en table_aruco.world; este archivo
+     existe solo porque model.config lo referencia. -->
+<sdf version="1.6">
+  <model name="avular_origin">
+    <static>true</static>
+    <link name="link"/>
+  </model>
+</sdf>

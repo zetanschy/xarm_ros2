@@ -39,12 +39,30 @@ CUBE_Z = 0.05
 TABLE_SURFACE = 1.015
 MODEL_Z = 1.00     # origen del modelo del robot movil
 
-# Chasis del robot movil. Apoya sobre la mesa con 5 mm de aire (las ruedas son
-# decorativas), y su cara superior es donde viaja el cubo.
-BODY_X, BODY_Y, BODY_Z = 0.17, 0.14, 0.040
-BODY_BOTTOM = TABLE_SURFACE + 0.005
-BODY_TOP = BODY_BOTTOM + BODY_Z
-WHEEL_R, WHEEL_W = 0.020, 0.014
+# Robot movil: mallas reales del Avular Origin One, de
+# https://github.com/zetanschy/avular_origin_simulation (origin_one_description).
+# Las mallas estan en MILIMETROS, de ahi el 0.001 del factor de escala.
+#
+# A tamano real el Origin mide 656 x 408 x 264 mm y sus ruedas mecanum 202 mm de
+# diametro: sobre esta mesa chocaria con la base del brazo y ocuparia casi todo
+# el ancho util. SCALE lo deja en 197 x 122 x 79 mm, que entra comodo y sigue
+# leyendose como el mismo robot.
+SCALE = 0.30
+MESH_SCALE = 0.001 * SCALE
+
+# Medidas del Origin real, del origin_one.urdf.xacro, escaladas.
+TRACK_WIDTH = 0.475 * SCALE
+WHEELBASE = 0.410 * SCALE
+GROUND_CLEARANCE = 0.0455 * SCALE
+WHEEL_Z = 0.056 * SCALE          # altura del eje respecto del cuerpo
+BODY_LEN = 0.656 * SCALE
+BODY_WID = 0.408 * SCALE
+BODY_HEIGHT = 0.26327 * SCALE    # extension en z de la malla del cuerpo
+
+# El cuerpo apoya a GROUND_CLEARANCE sobre la mesa; su cara de arriba es la
+# cubierta donde viaja el cubo.
+BODY_BOTTOM = TABLE_SURFACE + GROUND_CLEARANCE
+BODY_TOP = BODY_BOTTOM + BODY_HEIGHT
 
 # Recorrido rectangular, en coordenadas del MUNDO y respecto del centro (0.2, -0.8).
 #
@@ -56,10 +74,10 @@ WHEEL_R, WHEEL_W = 0.020, 0.014
 #
 # Y ademas el rectangulo entero entra en el campo de vision desde la pose de
 # observacion: la camara cubre +-0.164 m en horizontal y +-0.121 en vertical a la
-# altura del marcador, contra los +-0.08 y +-0.06 del recorrido. El brazo nunca
+# altura del marcador, contra los +-0.11 y +-0.08 del recorrido. El brazo nunca
 # pierde el marcador de vista aunque no lo siga bien.
-RECT_HALF_X = 0.08
-RECT_HALF_Y = 0.06
+RECT_HALF_X = 0.11
+RECT_HALF_Y = 0.08
 JOINT_MARGIN = 0.03   # holgura entre el recorrido y el tope mecanico
 
 
@@ -157,19 +175,25 @@ def build_world():
           <mass>2.0</mass>
           <inertia><ixx>0.01</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.01</iyy><iyz>0</iyz><izz>0.01</izz></inertia>
         </inertial>
+        <!-- Malla real del Avular Origin One. El origen de la malla coincide
+             con el frame main_body del URDF original, que esta a
+             GROUND_CLEARANCE del piso. -->
         <visual name="body">
-          <geometry><box><size>{BODY_X} {BODY_Y} {BODY_Z}</size></box></geometry>
-          <material><ambient>0.15 0.3 0.55 1</ambient><diffuse>0.2 0.4 0.7 1</diffuse></material>
-        </visual>
-        <!-- Franja delantera, para que se vea hacia donde va. -->
-        <visual name="front_stripe">
-          <pose>{BODY_X / 2 - 0.006:.4f} 0 0 0 0 0</pose>
-          <geometry><box><size>0.012 {BODY_Y * 0.8:.3f} {BODY_Z * 0.6:.3f}</size></box></geometry>
-          <material><ambient>0.9 0.75 0.1 1</ambient><diffuse>0.95 0.8 0.15 1</diffuse></material>
+          <pose>0 0 {-BODY_HEIGHT / 2:.4f} 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/body.obj</uri>
+              <scale>{MESH_SCALE} {MESH_SCALE} {MESH_SCALE}</scale>
+            </mesh>
+          </geometry>
         </visual>
 {_wheels()}
+        <!-- La colision es una caja, no la malla: el cubo solo necesita apoyarse
+             en una cubierta plana, y una malla de 125 mil vertices como geometria
+             de colision es un costo enorme para nada. La caja llega justo hasta
+             la cara de arriba del cuerpo. -->
         <collision name="deck">
-          <geometry><box><size>{BODY_X} {BODY_Y} {BODY_Z}</size></box></geometry>
+          <geometry><box><size>{BODY_LEN:.4f} {BODY_WID:.4f} {BODY_HEIGHT:.4f}</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>1000.0</mu><mu2>1000.0</mu2><slip1>0.0</slip1><slip2>0.0</slip2></ode>
@@ -274,28 +298,39 @@ def build_world():
 
 
 def _wheels():
-    """Cuatro ruedas omni, decorativas.
+    """Las cuatro ruedas mecanum del Origin, con sus mallas reales.
 
-    No giran ni tienen colision: el robot se mueve con dos juntas prismaticas,
-    que es movimiento holonomico puro. Justamente por eso las ruedas van a 45
-    grados, en disposicion omni/mecanum: un robot con ruedas normales no podria
-    desplazarse de costado, y el rectangulo incluye tramos laterales.
+    Son SOLO visuales, sin colision y sin girar: el robot se mueve con dos juntas
+    prismaticas, que es movimiento holonomico puro. Justamente por eso las ruedas
+    tienen que ser mecanum: un robot con ruedas normales no podria desplazarse de
+    costado, y el rectangulo incluye tramos laterales.
 
-    Simular la traccion de verdad seria peor: con ruedas motrices el recorrido
-    depende del agarre, y una patinada deja al robot fuera del alcance del brazo
-    o fuera del campo de vision. Para el alumno la diferencia es invisible.
+    Simular la traccion de verdad seria peor para esta tarea: con ruedas motrices
+    el recorrido depende del agarre, y una patinada deja al robot fuera del
+    alcance del brazo o fuera del campo de vision.
+
+    Las rotaciones salen de componer las dos que trae el URDF original: la del
+    joint (rpy -1.5707 0 0) con la del visual (rpy 0 +-1.5707 0).
     """
-    z = -(BODY_Z / 2.0) + 0.005
+    z = -BODY_HEIGHT / 2.0 + WHEEL_Z
     out = []
-    for sx in (1, -1):
-        for sy in (1, -1):
-            x = sx * (BODY_X / 2.0 - WHEEL_R - 0.008)
-            y = sy * (BODY_Y / 2.0 - WHEEL_R - 0.004)
-            yaw = 0.7854 * sx * sy   # +-45 grados, disposicion omni
-            out.append(f"""        <visual name="wheel_{'f' if sx > 0 else 'r'}{'l' if sy > 0 else 'r'}">
-          <pose>{x:.4f} {y:.4f} {z:.4f} 1.5708 0 {yaw:.4f}</pose>
-          <geometry><cylinder><radius>{WHEEL_R}</radius><length>{WHEEL_W}</length></cylinder></geometry>
-          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+    for sx, fr in ((1, 'f'), (-1, 'r')):
+        for sy, lr in ((1, 'l'), (-1, 'r')):
+            x = sx * WHEELBASE / 2.0
+            y = sy * TRACK_WIDTH / 2.0
+            # Rueda A para el lado izquierdo, B para el derecho: los rodillos van
+            # inclinados al reves en cada lado, que es lo que hace mecanum a una
+            # base mecanum.
+            mesh = 'wheel_mecanumA' if sy > 0 else 'wheel_mecanumB'
+            yaw = -1.5708 if sy > 0 else 1.5708
+            out.append(f"""        <visual name="wheel_{fr}{lr}">
+          <pose>{x:.4f} {y:.4f} {z:.4f} -1.5708 0 {yaw}</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/{mesh}.obj</uri>
+              <scale>{MESH_SCALE} {MESH_SCALE} {MESH_SCALE}</scale>
+            </mesh>
+          </geometry>
         </visual>""")
     return '\n'.join(out)
 

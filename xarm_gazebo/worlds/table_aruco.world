@@ -53,7 +53,7 @@
       </joint>
 
       <link name="x_carriage">
-        <pose>0 0 0.0400 0 0 0</pose>
+        <pose>0 0 0.0681 0 0 0</pose>
         <inertial>
           <mass>0.1</mass>
           <inertia><ixx>1e-4</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-4</iyy><iyz>0</iyz><izz>1e-4</izz></inertia>
@@ -65,8 +65,8 @@
         <axis>
           <xyz>1 0 0</xyz>
           <limit>
-            <lower>-0.110</lower>
-            <upper>0.110</upper>
+            <lower>-0.140</lower>
+            <upper>0.140</upper>
             <effort>500</effort><velocity>1.0</velocity>
           </limit>
           <dynamics><damping>2.0</damping></dynamics>
@@ -74,43 +74,65 @@
       </joint>
 
       <link name="chassis">
-        <pose>0 0 0.0400 0 0 0</pose>
+        <pose>0 0 0.0681 0 0 0</pose>
         <inertial>
           <mass>2.0</mass>
           <inertia><ixx>0.01</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.01</iyy><iyz>0</iyz><izz>0.01</izz></inertia>
         </inertial>
+        <!-- Malla real del Avular Origin One. El origen de la malla coincide
+             con el frame main_body del URDF original, que esta a
+             GROUND_CLEARANCE del piso. -->
         <visual name="body">
-          <geometry><box><size>0.17 0.14 0.04</size></box></geometry>
-          <material><ambient>0.15 0.3 0.55 1</ambient><diffuse>0.2 0.4 0.7 1</diffuse></material>
-        </visual>
-        <!-- Franja delantera, para que se vea hacia donde va. -->
-        <visual name="front_stripe">
-          <pose>0.0790 0 0 0 0 0</pose>
-          <geometry><box><size>0.012 0.112 0.024</size></box></geometry>
-          <material><ambient>0.9 0.75 0.1 1</ambient><diffuse>0.95 0.8 0.15 1</diffuse></material>
+          <pose>0 0 -0.0395 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/body.obj</uri>
+              <scale>0.0003 0.0003 0.0003</scale>
+            </mesh>
+          </geometry>
         </visual>
         <visual name="wheel_fl">
-          <pose>0.0570 0.0460 -0.0150 1.5708 0 0.7854</pose>
-          <geometry><cylinder><radius>0.02</radius><length>0.014</length></cylinder></geometry>
-          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+          <pose>0.0615 0.0712 -0.0227 -1.5708 0 -1.5708</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/wheel_mecanumA.obj</uri>
+              <scale>0.0003 0.0003 0.0003</scale>
+            </mesh>
+          </geometry>
         </visual>
         <visual name="wheel_fr">
-          <pose>0.0570 -0.0460 -0.0150 1.5708 0 -0.7854</pose>
-          <geometry><cylinder><radius>0.02</radius><length>0.014</length></cylinder></geometry>
-          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+          <pose>0.0615 -0.0712 -0.0227 -1.5708 0 1.5708</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/wheel_mecanumB.obj</uri>
+              <scale>0.0003 0.0003 0.0003</scale>
+            </mesh>
+          </geometry>
         </visual>
         <visual name="wheel_rl">
-          <pose>-0.0570 0.0460 -0.0150 1.5708 0 -0.7854</pose>
-          <geometry><cylinder><radius>0.02</radius><length>0.014</length></cylinder></geometry>
-          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+          <pose>-0.0615 0.0712 -0.0227 -1.5708 0 -1.5708</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/wheel_mecanumA.obj</uri>
+              <scale>0.0003 0.0003 0.0003</scale>
+            </mesh>
+          </geometry>
         </visual>
         <visual name="wheel_rr">
-          <pose>-0.0570 -0.0460 -0.0150 1.5708 0 0.7854</pose>
-          <geometry><cylinder><radius>0.02</radius><length>0.014</length></cylinder></geometry>
-          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+          <pose>-0.0615 -0.0712 -0.0227 -1.5708 0 1.5708</pose>
+          <geometry>
+            <mesh>
+              <uri>model://avular_origin/meshes/wheel_mecanumB.obj</uri>
+              <scale>0.0003 0.0003 0.0003</scale>
+            </mesh>
+          </geometry>
         </visual>
+        <!-- La colision es una caja, no la malla: el cubo solo necesita apoyarse
+             en una cubierta plana, y una malla de 125 mil vertices como geometria
+             de colision es un costo enorme para nada. La caja llega justo hasta
+             la cara de arriba del cuerpo. -->
         <collision name="deck">
-          <geometry><box><size>0.17 0.14 0.04</size></box></geometry>
+          <geometry><box><size>0.1968 0.1224 0.0790</size></box></geometry>
           <surface>
             <friction>
               <ode><mu>1000.0</mu><mu2>1000.0</mu2><slip1>0.0</slip1><slip2>0.0</slip2></ode>
@@ -133,8 +155,8 @@
         <axis>
           <xyz>0 1 0</xyz>
           <limit>
-            <lower>-0.090</lower>
-            <upper>0.090</upper>
+            <lower>-0.110</lower>
+            <upper>0.110</upper>
             <effort>500</effort><velocity>1.0</velocity>
           </limit>
           <dynamics><damping>2.0</damping></dynamics>
@@ -164,7 +186,7 @@
          Con valores fisicamente sensatos (mu = 2) el cubo se queda atras, y al
          agarrarlo se resbala de los dedos. -->
     <model name="aruco_cube">
-      <pose>0.2 -0.8 1.0850 0 0 0</pose>
+      <pose>0.2 -0.8 1.1326 0 0 0</pose>
       <static>false</static>
       <link name="link">
         <inertial>

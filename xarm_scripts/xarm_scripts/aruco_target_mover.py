@@ -47,8 +47,8 @@ ACCEL = 0.15  # m/s^2
 # Semiejes por defecto: tienen que coincidir con RECT_HALF_X / RECT_HALF_Y de
 # xarm_gazebo/scripts/gen_aruco_world.py, que es de donde salen los topes de las
 # juntas en el .world.
-DEFAULT_HALF_X = 0.08
-DEFAULT_HALF_Y = 0.06
+DEFAULT_HALF_X = 0.11
+DEFAULT_HALF_Y = 0.08
 
 
 class ArucoTargetMover(Node):

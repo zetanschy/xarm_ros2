@@ -42,12 +42,16 @@ import yaml
 
 from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 
-# Pose de observacion, en valores articulares. Corresponde a link6 en
-# (-0.30, -0.40, 0.35) de link_base con el gripper apuntando hacia abajo: la
-# camara queda a 0.23 m sobre la mesa, mirando el centro del recorrido del robot
-# movil. Desde ahi el rectangulo entero entra en el cuadro, asi que el marcador
-# no se sale de vista en ningun momento del recorrido.
-OBSERVATION_JOINTS = [-2.2136, 0.1147, -1.1834, -0.0030, 1.0658, 0.9380]
+# Pose de observacion, en valores articulares: link6 en (-0.30, -0.40, 0.437) de
+# link_base con el gripper hacia abajo, o sea el TCP en 0.265. La camara queda
+# unos 0.18 m sobre el marcador, y desde ahi el rectangulo entero entra en cuadro
+# (verificado: desde las cuatro esquinas el marcador se sigue detectando, a 68 px).
+#
+# La altura importa. Con el robot movil el marcador viaja mucho mas alto que antes
+# (cubierta en 1.108 contra la mesa en 1.015), asi que la pose de observacion
+# vieja dejaba la camara a solo 9 cm del marcador: cubria menos mesa que el propio
+# recorrido y el marcador se salia de cuadro.
+OBSERVATION_JOINTS = [-2.2148, 0.0672, -1.3772, 0.0122, 1.3084, 0.9311]
 
 
 def load_yaml(package_name, file_path):
@@ -150,7 +154,7 @@ def launch_setup(context, *args, **kwargs):
             # hace nada. Y sin comas: el formato de texto de protobuf no las usa
             # como separador, y con ellas se pierden campos.
             '  --req \'name: "aruco_cube" '
-            '     position { x: 0.2 y: -0.8 z: 1.090 } '
+            '     position { x: 0.2 y: -0.8 z: 1.138 } '
             "     orientation { x: 0 y: 0 z: 0 w: 1 }' > /dev/null 2>&1 || true; "
             'sleep 2; '
             'echo "escena reseteada"; '

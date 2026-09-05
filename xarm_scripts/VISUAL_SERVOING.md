@@ -37,6 +37,15 @@ lanza el nodo que mueve el marcador.
 
 ## Decisiones que no son obvias
 
+### La pose de observación se subió con el robot
+
+Con el Avular el marcador viaja mucho más alto que antes (cubierta en 1.108 contra
+la mesa en 1.015). La pose de observación vieja dejaba la cámara a solo 9 cm del
+marcador: cubría menos mesa que el propio recorrido, y el marcador se salía de
+cuadro. Ahora el TCP va a 0.265 (link6 en 0.437), con la cámara ~0.18 m sobre el
+marcador. Si se cambia la altura del robot o del objeto, esta pose hay que
+recalcularla.
+
 ### La cámara es coaxial con el TCP, no va al costado
 
 Primero estaba montada al costado del gripper, que es lo realista. El problema es
@@ -66,17 +75,34 @@ que un `albedo_map`, pero no depende de que `IGN_GAZEBO_RESOURCE_PATH` esté bie
 se lee) ni del mapeo UV de las caras de un `<box>`. Renderiza nítido y el
 detector lo agarra sin problema.
 
-### El objeto lo transporta un robot móvil omni, no un carro sobre un riel
+### El objeto lo transporta un Avular Origin One
 
-El robot recorre un rectángulo de 160 × 120 mm, da tres vueltas, y se estaciona en
-el centro. Recién ahí el brazo baja a sacarle el cubo.
+Las mallas son las reales, de
+[avular_origin_simulation](https://github.com/zetanschy/avular_origin_simulation)
+(`origin_one_description`), copiadas a `xarm_gazebo/models/avular_origin/meshes/`
+para que el mundo no dependa de tener ese repo clonado. Están en milímetros, de
+ahí el `0.001` del factor de escala.
 
-**Se mueve con dos juntas prismáticas (X, Y) controladas por posición, no con
-ruedas motrices.** Las ruedas son decorativas, puestas a 45° para que se lea como
-una base omni (el recorrido incluye tramos laterales, que con ruedas normales no
-tendrían sentido). Simular la tracción sería peor: el recorrido dependería del
-agarre, y una patinada deja al robot fuera del alcance del brazo o fuera del campo
-de visión. Para el alumno la diferencia es invisible.
+**Escaladas a 0.30.** A tamaño real el Origin mide 656 × 408 × 264 mm con ruedas
+mecanum de 202 mm: sobre esta mesa chocaría con la base del brazo y ocuparía casi
+todo el ancho útil. A 0.30 queda en 197 × 122 × 79 mm, entra cómodo, y se sigue
+leyendo como el mismo robot. Las medidas del chasis (track 475 mm, wheelbase
+410 mm, ground clearance 45.5 mm, eje a 56 mm) salen del
+`origin_one.urdf.xacro` original, escaladas igual.
+
+Recorre un rectángulo de **220 × 160 mm**, da tres vueltas, y se estaciona en el
+centro. Recién ahí el brazo baja a sacarle el cubo.
+
+**Se mueve con dos juntas prismáticas (X, Y) controladas por posición, no con las
+ruedas.** Las ruedas mecanum son solo visuales y no giran. Que sean mecanum no es
+decorativo: el recorrido incluye tramos laterales, y una base con ruedas normales
+no podría hacerlos. Simular la tracción sería peor para esta tarea: el recorrido
+dependería del agarre, y una patinada deja al robot fuera del alcance del brazo o
+fuera del campo de visión.
+
+La colisión es una caja, no la malla. Una malla de 125 mil vértices como geometría
+de colisión es un costo enorme para lo único que hace falta: que el cubo se apoye
+en una cubierta plana.
 
 Y va por **posición, no por velocidad**. Con comandos de velocidad la posición
 queda a lazo abierto: se integra v·dt, el error se acumula, y a los pocos ciclos
@@ -183,9 +209,19 @@ Los frames están unos 25 mm por fuera de la superficie de contacto de cada lado
 así que hay que restar unos 50 mm para tener la apertura útil.
 
 **Causa 3 — la velocidad de ascenso.** Al acelerar el descenso subí `MAX_Z_SPEED`
-a 0.25 m/s, y el ascenso usaba la misma constante. El tirón rompe el agarre: el
-cubo sube 15 mm y se cae. Bajar rápido está bien; subir tiene que ir a 0.06 m/s.
-Son dos constantes distintas por una razón física, no por descuido.
+a 0.25 m/s, y el ascenso usaba la misma constante. El tirón rompe el agarre. Son
+dos constantes distintas por una razón física, no por descuido. Medido, subiendo
+desde la cubierta del Avular:
+
+| Velocidad de ascenso | Resultado |
+|---|---|
+| 0.25 m/s | sube 15 mm y se cae |
+| 0.06 m/s | sube 68 mm, se sostiene medio segundo, resbala |
+| 0.04 m/s | sube 88 mm y **aguanta** |
+
+Y hay que darle tiempo al contacto: 2 s entre cerrar el gripper y empezar a subir.
+La trayectoria del gripper dura 1 s, así que con menos margen se arranca a subir
+con los dedos todavía moviéndose, y eso es medio agarre.
 
 ## Trampa al verificar: `ign model --pose` miente
 
@@ -228,11 +264,14 @@ Verificado corriendo, en este orden:
   `/wrist_camera/camera_info` (`fx = 343.5`).
 - El servo mueve el brazo con twists en `wrist_camera_optical_frame`; `+z` de ese
   frame baja hacia la mesa.
-- El robot móvil transporta el cubo por el rectángulo completo: recorrido medido
-  0.162 × 0.121 m contra los 0.160 × 0.120 nominales, con 0.7 mm de variación en
-  altura (el cubo no resbala ni se vuelca), y estaciona exactamente en el centro.
-- Seguimiento con el robot en movimiento: 12+ s continuos sin perder el marcador.
-- Agarre y levantamiento del cubo estacionado: 96 mm de subida.
+- Las mallas del Avular cargan sin un solo error y el cubo reposa exactamente en
+  1.1326, sobre la cubierta.
+- Las cuatro esquinas del rectángulo de 220 × 160 mm son alcanzables (las cuatro
+  planifican y el brazo llega con ±2 mm), y desde todas ellas el marcador se
+  sigue detectando a 68 px.
+- Seguimiento durante el rectángulo completo de 220 × 160 mm: recorrido medido
+  0.222 m y **cero pérdidas de marcador** en toda la corrida.
+- Agarre y levantamiento del cubo estacionado: 88 mm, y se queda arriba.
 - Relanzar la Terminal 2 sin reiniciar Gazebo deja el brazo otra vez en
   `(-0.300, -0.400, 0.178)` y el cubo sobre el robot.
 
