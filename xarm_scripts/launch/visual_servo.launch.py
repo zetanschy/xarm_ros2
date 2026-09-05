@@ -33,8 +33,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (DeclareLaunchArgument, ExecuteProcess, OpaqueFunction,
-                            RegisterEventHandler)
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess, LogInfo,
+                            OpaqueFunction, RegisterEventHandler, Shutdown)
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -97,6 +97,40 @@ def launch_setup(context, *args, **kwargs):
     reset_scene = ExecuteProcess(
         cmd=[
             'bash', '-c',
+            # Antes que nada, esperar a que la simulacion de la Terminal 1 tenga
+            # los controladores cargados. Gazebo tarda entre 60 y 90 s en llegar
+            # ahi, y lanzar esta terminal antes es lo que va a pasar siempre.
+            #
+            # Sin esta espera el launch seguia igual: publicaba la trayectoria a
+            # la pose de observacion sin que nadie la ejecutara, cambiaba de
+            # controlador, levantaba el servo, y dejaba el brazo en la pose de
+            # spawn -- SIN UN SOLO MENSAJE DE ERROR. El sintoma para el alumno es
+            # "no detecta el marcador", que manda a buscar el problema al lugar
+            # equivocado.
+            #
+            # Se espera a que el controlador EXISTA, no a que este activo: si
+            # este launch ya corrio, quedo inactivo, y reactivarlo es justo lo
+            # que hace el paso siguiente.
+            'CM=/controller_manager; '
+            'echo "esperando los controladores de la simulacion..."; '
+            'for i in $(seq 1 90); do '
+            '  if ros2 control list_controllers --controller-manager $CM 2>/dev/null '
+            '       | sed \'s/\\x1b\\[[0-9;]*m//g\' | grep -q "^xarm6_traj_controller"; then '
+            '    LISTO=1; break; '
+            '  fi; '
+            '  sleep 2; '
+            'done; '
+            'if [ -z "$LISTO" ]; then '
+            '  echo; '
+            '  echo "=========================================================="; '
+            '  echo "ERROR: la simulacion no aparecio en 180 s."; '
+            '  echo "Arranca primero la Terminal 1 y espera a ver"; '
+            '  echo "  Configured and activated xarm6_traj_controller"; '
+            '  echo "antes de lanzar esta."; '
+            '  echo "=========================================================="; '
+            '  exit 1; '
+            'fi; '
+            'echo "controladores listos"; '
             "ros2 topic pub --once /xarm_gripper_traj_controller/joint_trajectory "
             "trajectory_msgs/msg/JointTrajectory "
             "'{joint_names: [drive_joint], points: [{positions: [0.0], "
@@ -132,13 +166,31 @@ def launch_setup(context, *args, **kwargs):
             '  inactive --controller-manager $CM > /dev/null 2>&1 || true; '
             'ros2 control set_controller_state xarm6_traj_controller active '
             '  --controller-manager $CM > /dev/null 2>&1 || true; '
-            'sleep 1; '
-            'ros2 topic pub --once /xarm6_traj_controller/joint_trajectory '
-            'trajectory_msgs/msg/JointTrajectory '
-            "'{joint_names: [joint1, joint2, joint3, joint4, joint5, joint6], "
+            # Se manda por la ACCION y no por el topico
+            # /xarm6_traj_controller/joint_trajectory: la accion bloquea hasta
+            # que el brazo llega y dice si el goal fue aceptado o rechazado. Con
+            # el topico no hay ninguna respuesta -- si el controlador esta
+            # inactivo la trayectoria se publica al vacio, el launch sigue
+            # contento, y el alumno termina con el brazo en la pose de spawn
+            # buscando el problema en su codigo de vision.
+            'OUT=$(ros2 action send_goal '
+            '  /xarm6_traj_controller/follow_joint_trajectory '
+            '  control_msgs/action/FollowJointTrajectory '
+            "  '{trajectory: {joint_names: [joint1, joint2, joint3, joint4, joint5, joint6], "
             'points: [{positions: [' + joints + '], '
-            "time_from_start: {sec: 4, nanosec: 0}}]}'; "
-            'sleep 5',
+            "time_from_start: {sec: 4, nanosec: 0}}]}}' 2>&1); "
+            'echo "$OUT" | tail -2; '
+            'if ! echo "$OUT" | grep -q SUCCEEDED; then '
+            '  echo; '
+            '  echo "=========================================================="; '
+            '  echo "ERROR: el brazo no llego a la pose de observacion."; '
+            '  echo "Desde donde quedo, la camara no ve el marcador y nada de"; '
+            '  echo "lo que sigue va a funcionar. Reinicia la Terminal 1 y"; '
+            '  echo "volve a lanzar esta."; '
+            '  echo "=========================================================="; '
+            '  exit 1; '
+            'fi; '
+            'echo "en la pose de observacion"',
         ],
         output='screen',
     )
@@ -210,14 +262,28 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'mode': mode}, use_sim_time],
         ))
 
+    def continue_if_ok(next_actions):
+        """Sigue con el paso siguiente solo si el anterior salio bien.
+
+        Si un paso falla, lo que corresponde es parar todo: seguir levantando el
+        servo sobre un brazo que quedo en la pose equivocada solo sirve para que
+        el error aparezca 20 minutos despues, disfrazado de "no detecta el
+        marcador".
+        """
+        def handler(event, context):
+            if event.returncode != 0:
+                return [LogInfo(msg='paso fallido: se aborta el launch'), Shutdown()]
+            return next_actions
+        return handler
+
     return [
         reset_scene,
         RegisterEventHandler(event_handler=OnProcessExit(
-            target_action=reset_scene, on_exit=[goto_observation])),
+            target_action=reset_scene, on_exit=continue_if_ok([goto_observation]))),
         RegisterEventHandler(event_handler=OnProcessExit(
-            target_action=goto_observation, on_exit=after_goto)),
+            target_action=goto_observation, on_exit=continue_if_ok(after_goto))),
         RegisterEventHandler(event_handler=OnProcessExit(
-            target_action=switch_to_position_control, on_exit=after_switch)),
+            target_action=switch_to_position_control, on_exit=continue_if_ok(after_switch))),
     ]
 
 

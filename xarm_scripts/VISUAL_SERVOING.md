@@ -90,6 +90,34 @@ cortaba a la mitad: el brazo quedaba a mitad de camino, el marcador fuera de
 cuadro, y el nodo del alumno nunca detectaba nada. Con `OnProcessExit` no importa
 cuánto tarde cada paso.
 
+### El launch espera a la simulacion, y aborta si un paso falla
+
+Lanzar la Terminal 2 antes de que Gazebo termine de levantar los controladores es
+lo que va a pasar siempre: Gazebo tarda entre 60 y 90 s. La primera version del
+launch se tragaba todos los errores con `|| true` y seguia igual -- publicaba la
+trayectoria a la pose de observacion sin que nadie la ejecutara, cambiaba de
+controlador, levantaba el servo, y dejaba el brazo en la pose de spawn **sin un
+solo mensaje**. El sintoma es "no detecta el marcador", que manda a buscar el
+problema al codigo de vision del alumno.
+
+Dos cambios:
+
+- El paso 0 espera (hasta 180 s) a que `xarm6_traj_controller` aparezca en
+  `ros2 control list_controllers`, y si no aparece corta con un mensaje que dice
+  que hay que arrancar la Terminal 1 primero.
+- El movimiento a la pose de observacion va por la **accion**
+  `/xarm6_traj_controller/follow_joint_trajectory`, no por el topico
+  `joint_trajectory`. La accion bloquea hasta que el brazo llega y dice si el
+  goal fue aceptado; el topico no responde nada. Si el resultado no es
+  `SUCCEEDED`, el paso corta.
+
+Ademas, si cualquiera de los pasos encadenados sale con codigo distinto de cero,
+el launch hace `Shutdown()` en vez de seguir. Levantar el servo sobre un brazo
+mal posicionado solo sirve para que el error aparezca mas tarde y disfrazado.
+
+Verificado: con Gazebo recien arrancado y la Terminal 2 lanzada 3 s despues, el
+launch espera, resetea, y el TCP queda en `(-0.300, -0.400, 0.178)`.
+
 ### Relanzar tiene que funcionar sin reiniciar Gazebo
 
 En clase se relanza mucho. Dos cosas lo hacían fallar y están resueltas:
