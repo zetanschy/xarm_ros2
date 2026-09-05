@@ -2,9 +2,26 @@
 # al controlador. Es el que detecta que la trayectoria dejo de ser valida.
 robot_description: "robot_description"
 
-# Trajectory operator: mantiene la trayectoria de referencia y sigue por donde
-# va el robot. SimpleSampler avanza al waypoint mas cercano.
-trajectory_operator_plugin_name: "moveit_hybrid_planning/SimpleSampler"
+# Trajectory operator: mantiene la trayectoria de referencia y sigue por donde va
+# el robot.
+#
+# NO es el SimpleSampler de MoveIt. Ese arranca cada trayectoria nueva en el
+# waypoint 0, que es el estado inicial que uso el GLOBAL PLANNER, no el estado del
+# brazo cuando la solucion llega. Si el brazo se movio en el medio -que es lo
+# normal- la distancia al waypoint 0 supera la tolerancia, el indice no avanza
+# nunca, y el local planner se queda comandando una pose vieja para siempre. Eso
+# hacia que el ciclo reactivo fuera bimodal: o cerraba en 3 replanificaciones o
+# gastaba los 30 reintentos.
+#
+# NearestWaypointSampler ancla cada trayectoria nueva en el waypoint mas cercano
+# al estado real del brazo. Ver xarm_hybrid_planning/src/nearest_waypoint_sampler.cpp.
+trajectory_operator_plugin_name: "xarm_hybrid_planning/NearestWaypointSampler"
+
+# Tolerancia para dar por alcanzado un waypoint (rad, suma L1 sobre las juntas) y
+# cuantos ciclos sin avanzar se toleran antes de volver a anclar. A 100 Hz, 100
+# ciclos es un segundo.
+waypoint_radian_tolerance: 0.2
+reanchor_stall_cycles: 100
 
 # Local constraint solver: genera el comando de cada iteracion. ForwardTrajectory
 # simplemente reenvia el siguiente waypoint, y con stop_before_collision frena

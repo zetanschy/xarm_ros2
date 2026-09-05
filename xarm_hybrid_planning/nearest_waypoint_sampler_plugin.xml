@@ -1,0 +1,13 @@
+<library path="nearest_waypoint_sampler">
+  <class name="xarm_hybrid_planning/NearestWaypointSampler"
+         type="xarm_hybrid_planning::NearestWaypointSampler"
+         base_class_type="moveit::hybrid_planning::TrajectoryOperatorInterface">
+    <description>
+      Trajectory operator que engancha cada trayectoria global nueva en el
+      waypoint mas cercano al estado real del brazo, en vez de asumir el indice 0.
+      Variante de moveit_hybrid_planning/SimpleSampler; sin esto el ciclo reactivo
+      queda clavado cuando el brazo se movio entre que el global planner leyo el
+      estado y que su solucion llego.
+    </description>
+  </class>
+</library>

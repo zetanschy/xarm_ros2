@@ -161,7 +161,48 @@ corrida 3: OK=0 intentos=30    <- gasta los 30 reintentos y se rinde
 El resultado es **bimodal**: o sale en 3 replanificaciones, o no sale en 30. No
 hay término medio. Con dos placas sorpresa era peor.
 
-### Por qué es bimodal (causa raíz, en el operador de trayectoria de MoveIt)
+### La causa raíz de abajo resultó NO ser la que falla (medido)
+
+Lo que sigue describe un mecanismo real de `SimpleSampler`, y se escribió un
+trajectory operator propio para eliminarlo:
+`xarm_hybrid_planning/NearestWaypointSampler`, que ancla cada trayectoria nueva en
+el waypoint más cercano al estado real del brazo en vez de asumir el índice 0.
+Está en uso (`local_planner.yaml`) y funciona.
+
+**Pero no arregla la lotería, porque ese mecanismo no es el que se dispara.** El
+operador loguea en qué waypoint ancla, y en una corrida fallida los 30 anclajes
+dieron **waypoint 0**: el estado inicial del global planner sí coincide con el
+real. La diferencia que se suponía culpable no existe.
+
+Lo que sí discrimina, comparando una corrida buena contra una mala:
+
+| | corrida OK | corrida fallida |
+|---|---|---|
+| intentos | 2 | 30 |
+| tamaño de los planes | 25 y 38 waypoints | 12–13, repetido 27 veces |
+| "Collision ahead" | 38 | 76 |
+| atascos del local planner | 8 | 239 |
+
+O sea: cuando sale bien, el global planner devuelve un **rodeo** (25–38 waypoints).
+Cuando sale mal devuelve siempre el mismo plan **corto** de 12–13 waypoints, que
+va derecho al obstáculo; el local planner ve colisión, frena, el detector de
+atasco de `ForwardTrajectory` dispara a los 50 ms (5 iteraciones a 100 Hz), se
+pide replan, y vuelve el mismo plan corto.
+
+**El global planner está planificando como si las placas nuevas no existieran**, en
+esas corridas y no en otras.
+
+Descartado como causa: el warning `Cannot find planning configuration for group
+'xarm6'` aparece en las dos (2 veces en la buena, 30 en la mala: una por intento),
+así que no discrimina. Y la inversión de nombres de tópico del Arreglo A está bien
+aplicada.
+
+Lo próximo a mirar es por qué el planning scene monitor del global planner a veces
+no tiene las placas: probablemente una carrera entre el `/apply_planning_scene` de
+la demo y la suscripción del monitor a `/monitored_planning_scene`, no nada del
+operador de trayectoria.
+
+### Por qué SimpleSampler puede quedarse clavado (mecanismo real, pero no el que falla acá)
 
 Está en `SimpleSampler::getLocalTrajectory`:
 
@@ -188,17 +229,19 @@ Esto está en `SimpleSampler`, el operador de trayectoria de referencia de MoveI
 El planner logic plugin propio no puede arreglarlo: la decisión de si el índice
 avanza no pasa por ahí.
 
-### Cómo cerrarlo del todo
+### El trajectory operator propio: hecho, pero no era esto
 
-Escribir también un **trajectory operator** propio, contra
-`TrajectoryOperatorInterface`, que enganche la trayectoria nueva desde el estado
-**actual** del brazo en vez del estado inicial del planner: buscar el waypoint más
-cercano al estado real y arrancar de ahí, en lugar de asumir el índice 0. Es el
-mismo patrón que `xarm_hybrid_planning/ReplanWhenIdle` pero para la otra interfaz,
-y va en el mismo paquete.
+`xarm_hybrid_planning/NearestWaypointSampler` (mismo paquete que `ReplanWhenIdle`,
+contra `TrajectoryOperatorInterface`) ancla cada trayectoria nueva en el waypoint
+más cercano al estado real del brazo, y además vuelve a anclar si el índice se
+queda quieto más de `reanchor_stall_cycles` ciclos.
 
-Con eso el ciclo debería cerrar de forma determinista, porque desaparece la única
-fuente de aleatoriedad que queda.
+Compila, carga y ancla bien —loguea el índice elegido cada vez—, así que ese
+mecanismo de fallo queda cerrado. Lo que **no** hace es arreglar la lotería: como
+se midió arriba, todos los anclajes dan índice 0, o sea que ese mecanismo nunca se
+estaba disparando. Se deja porque es estrictamente más correcto que
+`SimpleSampler` y porque el contador de atasco es un seguro barato, pero no hay
+que atribuirle una mejora que no se midió.
 
 ### Mientras tanto, para la clase
 
