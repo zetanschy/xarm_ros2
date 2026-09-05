@@ -260,6 +260,7 @@ class MoveItConfigsBuilder(ParameterBuilder):
         add_d435i_links = get_param_str('add_d435i_links', True)
         use_gazebo_camera = get_param_str('use_gazebo_camera', False)
         add_overhead_camera = get_param_str('add_overhead_camera', False)
+        add_wrist_camera = get_param_str('add_wrist_camera', False)
         overhead_camera_xyz = get_param_str('overhead_camera_xyz', '0.3 0 0.8')
         overhead_camera_rpy = get_param_str('overhead_camera_rpy', '0 0 0')
         add_other_geometry = get_param_str('add_other_geometry', False)
@@ -310,6 +311,7 @@ class MoveItConfigsBuilder(ParameterBuilder):
             'add_d435i_links': add_d435i_links,
             'use_gazebo_camera': use_gazebo_camera,
             'add_overhead_camera': add_overhead_camera,
+            'add_wrist_camera': add_wrist_camera,
             'overhead_camera_xyz': overhead_camera_xyz,
             'overhead_camera_rpy': overhead_camera_rpy,
             'add_other_geometry': add_other_geometry,

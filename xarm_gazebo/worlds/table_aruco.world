@@ -1,0 +1,349 @@
+<?xml version="1.0" ?>
+<!-- GENERADO por xarm_gazebo/scripts/gen_aruco_world.py - no editar a mano. -->
+<sdf version="1.6">
+  <world name="default">
+
+    <!-- Sensors es obligatorio para que la camara de muneca renderice. Sin este
+         plugin el topico /wrist_camera existe pero no publica nada. -->
+    <plugin filename="ignition-gazebo-physics-system" name="ignition::gazebo::systems::Physics"/>
+    <plugin filename="ignition-gazebo-user-commands-system" name="ignition::gazebo::systems::UserCommands"/>
+    <plugin filename="ignition-gazebo-scene-broadcaster-system" name="ignition::gazebo::systems::SceneBroadcaster"/>
+    <plugin filename="ignition-gazebo-sensors-system" name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
+    </include>
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+    </include>
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Table</uri>
+      <name>table</name>
+      <pose>0.0 -0.84 0 0 0 0</pose>
+    </include>
+
+    <!-- Carro: una bandeja sobre un riel prismatico. El cubo NO esta pegado al
+         carro, solo apoyado dentro: las paredes lo empujan, y por eso se puede
+         levantar en vertical sin pelear contra la restriccion del joint. Mover
+         el cubo con VelocityControl en vez de esto lo dejaria clavado en el aire
+         y el gripper no podria arrancarlo. -->
+    <model name="aruco_cart">
+      <pose>0.2 -0.8 1.0 0 0 0</pose>
+      <static>false</static>
+
+      <link name="rail">
+        <visual name="visual">
+          <pose>0 0 0.001 0 0 0</pose>
+          <geometry>
+            <box><size>0.360 0.12 0.002</size></box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.28 1</ambient>
+            <diffuse>0.25 0.25 0.28 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <joint name="rail_fixed" type="fixed">
+        <parent>world</parent>
+        <child>rail</child>
+      </joint>
+
+      <link name="cart">
+        <pose>0 0 0.0075 0 0 0</pose>
+        <inertial>
+          <mass>0.5</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.001</izz></inertia>
+        </inertial>
+        <visual name="floor_visual">
+          <geometry><box><size>0.10 0.10 0.005</size></box></geometry>
+          <material><ambient>0.2 0.35 0.6 1</ambient><diffuse>0.2 0.35 0.6 1</diffuse></material>
+        </visual>
+        <collision name="floor_collision">
+          <geometry><box><size>0.10 0.10 0.005</size></box></geometry>
+          <surface><friction><ode><mu>2.0</mu><mu2>2.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="wall_xp_visual">
+          <pose>0.0475 0 0.0100 0 0 0</pose>
+          <geometry><box><size>0.005 0.1 0.015</size></box></geometry>
+          <material><ambient>0.2 0.35 0.6 1</ambient><diffuse>0.2 0.35 0.6 1</diffuse></material>
+        </visual>
+        <collision name="wall_xp_collision">
+          <pose>0.0475 0 0.0100 0 0 0</pose>
+          <geometry><box><size>0.005 0.1 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_xn_visual">
+          <pose>-0.0475 0 0.0100 0 0 0</pose>
+          <geometry><box><size>0.005 0.1 0.015</size></box></geometry>
+          <material><ambient>0.2 0.35 0.6 1</ambient><diffuse>0.2 0.35 0.6 1</diffuse></material>
+        </visual>
+        <collision name="wall_xn_collision">
+          <pose>-0.0475 0 0.0100 0 0 0</pose>
+          <geometry><box><size>0.005 0.1 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_yp_visual">
+          <pose>0 0.0475 0.0100 0 0 0</pose>
+          <geometry><box><size>0.1 0.005 0.015</size></box></geometry>
+          <material><ambient>0.2 0.35 0.6 1</ambient><diffuse>0.2 0.35 0.6 1</diffuse></material>
+        </visual>
+        <collision name="wall_yp_collision">
+          <pose>0 0.0475 0.0100 0 0 0</pose>
+          <geometry><box><size>0.1 0.005 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_yn_visual">
+          <pose>0 -0.0475 0.0100 0 0 0</pose>
+          <geometry><box><size>0.1 0.005 0.015</size></box></geometry>
+          <material><ambient>0.2 0.35 0.6 1</ambient><diffuse>0.2 0.35 0.6 1</diffuse></material>
+        </visual>
+        <collision name="wall_yn_collision">
+          <pose>0 -0.0475 0.0100 0 0 0</pose>
+          <geometry><box><size>0.1 0.005 0.015</size></box></geometry>
+        </collision>
+      </link>
+      <joint name="slide" type="prismatic">
+        <parent>rail</parent>
+        <child>cart</child>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <!-- El limite se deja con margen sobre TRAVEL: el controlador de
+               posicion sobrepasa un poco al frenar, y llegar al tope mecanico
+               en cada extremo mete un golpe que sacude el cubo. -->
+          <limit><lower>-0.170</lower><upper>0.170</upper><effort>200</effort><velocity>1.0</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+
+      <!-- Control de POSICION del riel, no de velocidad. Escucha gz-transport
+           en /aruco_cart/cmd_pos (ignition.msgs.Double, posicion del carro en m
+           respecto del centro del riel).
+
+           Con el JointController por velocidad la posicion queda a lazo abierto:
+           se integra v*dt y el error se acumula, asi que a los pocos ciclos el
+           carro llega al tope del joint y ahi se queda clavado -- los comandos
+           siguen alternando y el marcador ya no se mueve. Con control de
+           posicion cada consigna es absoluta y no hay deriva que acumular. -->
+      <plugin filename="ignition-gazebo-joint-position-controller-system"
+              name="ignition::gazebo::systems::JointPositionController">
+        <joint_name>slide</joint_name>
+        <topic>/aruco_cart/cmd_pos</topic>
+        <p_gain>200.0</p_gain>
+        <i_gain>0.0</i_gain>
+        <d_gain>20.0</d_gain>
+        <cmd_max>100.0</cmd_max>
+        <cmd_min>-100.0</cmd_min>
+      </plugin>
+    </model>
+
+    <!-- Cubo con el marcador ArUco id 0 (36 mm) en la cara superior. -->
+    <model name="aruco_cube">
+      <pose>0.2 -0.8 1.0350 0 0 0</pose>
+      <static>false</static>
+      <link name="link">
+        <inertial>
+          <mass>0.01</mass>
+          <inertia><ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-5</iyy><iyz>0</iyz><izz>1e-5</izz></inertia>
+        </inertial>
+        <visual name="body">
+          <geometry><box><size>0.04 0.04 0.05</size></box></geometry>
+          <material><ambient>0.9 0.9 0.9 1</ambient><diffuse>0.9 0.9 0.9 1</diffuse></material>
+        </visual>
+        <!-- Placa blanca: el borde claro que el detector necesita alrededor del patron. -->
+        <visual name="marker_plate">
+          <pose>0 0 0.0252 0 0 0</pose>
+          <geometry><box><size>0.0480 0.0480 0.0004</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <!-- Celdas negras del patron, elevadas 0.4 mm sobre la placa blanca para
+             que no haya z-fighting con ella. -->
+        <visual name="aruco_0_0">
+          <pose>-0.0150 0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_0_1">
+          <pose>-0.0090 0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_0_2">
+          <pose>-0.0030 0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_0_3">
+          <pose>0.0030 0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_0_4">
+          <pose>0.0090 0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_0_5">
+          <pose>0.0150 0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_1_0">
+          <pose>-0.0150 0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_1_2">
+          <pose>-0.0030 0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_1_5">
+          <pose>0.0150 0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_2_0">
+          <pose>-0.0150 0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_2_1">
+          <pose>-0.0090 0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_2_3">
+          <pose>0.0030 0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_2_5">
+          <pose>0.0150 0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_3_0">
+          <pose>-0.0150 -0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_3_1">
+          <pose>-0.0090 -0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_3_2">
+          <pose>-0.0030 -0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_3_5">
+          <pose>0.0150 -0.0030 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_4_0">
+          <pose>-0.0150 -0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_4_1">
+          <pose>-0.0090 -0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_4_2">
+          <pose>-0.0030 -0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_4_4">
+          <pose>0.0090 -0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_4_5">
+          <pose>0.0150 -0.0090 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_5_0">
+          <pose>-0.0150 -0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_5_1">
+          <pose>-0.0090 -0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_5_2">
+          <pose>-0.0030 -0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_5_3">
+          <pose>0.0030 -0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_5_4">
+          <pose>0.0090 -0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <visual name="aruco_5_5">
+          <pose>0.0150 -0.0150 0.0256 0 0 0</pose>
+          <geometry><box><size>0.0060 0.0060 0.0004</size></box></geometry>
+          <material><ambient>0 0 0 1</ambient><diffuse>0 0 0 1</diffuse><specular>0 0 0 1</specular></material>
+        </visual>
+        <!-- Estos parametros de superficie son los mismos, al pie de la letra,
+             que los del small_box de table_gz.world, que es el cubo que agarra
+             pick_and_place.py. No son "realistas": mu=1000 y friccion torsional
+             son un truco para que un gripper paralelo controlado por POSICION
+             pueda sostener un objeto libre en Gazebo. Con mu=2 (un valor
+             fisicamente sensato) el cubo se resbala de los dedos y el brazo
+             levanta el aire, aunque el agarre se vea perfecto en camara. -->
+        <collision name="collision">
+          <geometry><box><size>0.04 0.04 0.05</size></box></geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1000.0</mu>
+                <mu2>1000.0</mu2>
+                <slip1>0.0</slip1>
+                <slip2>0.0</slip2>
+                <fdir1>0 0 1</fdir1>
+              </ode>
+              <torsional>
+                <coefficient>100.0</coefficient>
+                <use_patch_radius>true</use_patch_radius>
+                <patch_radius>0.1</patch_radius>
+                <surface_radius>0.05</surface_radius>
+              </torsional>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1e8</kp>
+                <kd>1000</kd>
+                <max_vel>0.0</max_vel>
+                <min_depth>0.002</min_depth>
+              </ode>
+            </contact>
+            <bounce>
+              <restitution_coefficient>0</restitution_coefficient>
+              <threshold>0</threshold>
+            </bounce>
+          </surface>
+        </collision>
+      </link>
+    </model>
+
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <gravity>0 0 -9.81</gravity>
+    </physics>
+
+  </world>
+</sdf>

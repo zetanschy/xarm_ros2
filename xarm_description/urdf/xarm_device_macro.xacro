@@ -22,6 +22,7 @@
     add_d435i_links:=true
     use_gazebo_camera:=false
     add_overhead_camera:=false
+    add_wrist_camera:=false
     overhead_camera_xyz:='0.3 0 0.8'
     overhead_camera_rpy:='0 0 0'
     add_other_geometry:=false 
@@ -249,6 +250,19 @@
         <xacro:overhead_camera_gazebo prefix="${prefix}" />
       </xacro:if>
     </xacro:if>
+    <!-- Camara de muneca para visual servoing (Tarea 2). Va colgada de
+         link_eef, asi que tiene que declararse despues de que ese link exista. -->
+    <xacro:if value="${add_wrist_camera}">
+      <xacro:include filename="$(find xarm_description)/urdf/camera/wrist_camera.urdf.xacro" />
+      <xacro:wrist_camera prefix="${prefix}" parent_link="link_eef" />
+      <xacro:if value="${ros2_control_plugin == 'gz_ros2_control/GazeboSimSystem'}">
+        <xacro:wrist_camera_gz prefix="${prefix}" />
+      </xacro:if>
+      <xacro:if value="${ros2_control_plugin == 'ign_ros2_control/IgnitionSystem'}">
+        <xacro:wrist_camera_ignition prefix="${prefix}" />
+      </xacro:if>
+    </xacro:if>
+
     <joint name="${prefix}joint_eef" type="fixed">
       <origin xyz="0 0 0" rpy="0 0 0" />
       <parent link="${prefix}link${dof}" />

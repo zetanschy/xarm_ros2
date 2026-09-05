@@ -38,6 +38,7 @@ def launch_setup(context, *args, **kwargs):
     ros2_control_plugin = LaunchConfiguration('ros2_control_plugin', default='')
     
     add_realsense_d435i = LaunchConfiguration('add_realsense_d435i', default=False)
+    add_wrist_camera = LaunchConfiguration('add_wrist_camera', default=False)
     add_d435i_links = LaunchConfiguration('add_d435i_links', default=True)
     model1300 = LaunchConfiguration('model1300', default=False)
     robot_sn = LaunchConfiguration('robot_sn', default='')
@@ -290,6 +291,18 @@ def launch_setup(context, *args, **kwargs):
                     '/camera/depth_image@sensor_msgs/msg/Image@ignition.msgs.Image',
                     '/camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked',
                 ])
+        # Camara de muneca (Tarea 2 - visual servoing). El sensor 'camera' de
+        # Ignition publica la imagen en /<topic> y los intrinsecos en
+        # /<topic>/camera_info; el remap de abajo deja la imagen en el nombre
+        # que espera ROS.
+        if add_wrist_camera.perform(context) in ('True', 'true') or 'aruco' in world_file:
+            args.extend([
+                '/wrist_camera@sensor_msgs/msg/Image@ignition.msgs.Image',
+                '/wrist_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
+            ])
+        # Consigna de posicion del carro del marcador (ROS -> Ignition, en m).
+        if 'aruco' in world_file:
+            args.append('/aruco_cart/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double')
         gz_bridge = Node(
             package='ros_ign_bridge',
             executable='parameter_bridge',
@@ -297,6 +310,7 @@ def launch_setup(context, *args, **kwargs):
             remappings=[
                 ('/camera/image', '/camera/image_raw'),  # Remap Ignition /camera/image to ROS /camera/image_raw
                 ('/camera/depth_image', '/camera/depth/image'),  # Remap Ignition /camera/depth_image to ROS /camera/depth/image
+                ('/wrist_camera', '/wrist_camera/image_raw'),
             ],
             # remappings=[
             #     ('/xarm/joint_states', 'joint_states'),

@@ -1,0 +1,76 @@
+###############################################################################
+# MoveIt Servo para el xArm6 en Gazebo - Tarea 2 (visual servoing)
+#
+# Diferencias con xarm_moveit_servo/config/xarm_moveit_servo_config.yaml, que
+# esta hecho para el robot real / fake y NO sirve tal cual en la simulacion:
+#
+#  1. command_out_type. El de fabrica publica trajectory_msgs/JointTrajectory al
+#     xarm6_traj_controller. Mandarle una trayectoria nueva de un punto 50 veces
+#     por segundo a un JointTrajectoryController lo hace reiniciar la ejecucion
+#     todo el tiempo. Es el mismo problema que ya se resolvio en el hybrid
+#     planning de la Clase 5, y la solucion es la misma: Float64MultiArray a un
+#     JointGroupPositionController.
+#
+#  2. robot_link_command_frame. De fabrica es link_base. Aca se comanda en el
+#     frame OPTICO DE LA CAMARA, que es lo que vuelve trivial el lazo IBVS:
+#     twist.linear.x mueve el efector hacia la derecha de la imagen,
+#     twist.linear.y hacia abajo de la imagen, y twist.linear.z hacia adelante
+#     (acercandose a lo que se esta mirando). El alumno pasa de error en pixeles
+#     a twist sin una sola transformacion.
+###############################################################################
+
+use_gazebo: false  # solo afecta la salida JointTrajectory, que aca no se usa
+
+## Entrada
+command_in_type: "speed_units"  # los twists van en m/s y rad/s
+scale:
+  linear: 0.4
+  rotational: 0.8
+  joint: 0.01
+
+## Salida
+publish_period: 0.02  # 50 Hz
+low_latency_mode: false
+command_out_type: std_msgs/Float64MultiArray
+publish_joint_positions: true
+publish_joint_velocities: false
+publish_joint_accelerations: false
+
+## Filtrado
+low_pass_filter_coeff: 2.0
+
+## MoveIt
+move_group_name: xarm6
+planning_frame: link_base
+
+## Frames
+ee_frame_name: link_tcp
+robot_link_command_frame: wrist_camera_optical_frame
+
+## Parada
+# 0.2 s es muy justo para un lazo alimentado por una camara de 30 Hz: cualquier
+# hipo del detector deja al brazo frenando de a tirones. Con 0.5 s el alumno
+# igual tiene que publicar a tasa fija, pero un frame perdido no se nota.
+incoming_command_timeout: 0.5
+num_outgoing_halt_msgs_to_publish: 4
+
+## Singularidades y limites
+lower_singularity_threshold: 17.0
+hard_stop_singularity_threshold: 30.0
+joint_limit_margin: 0.1
+
+## Topicos
+cartesian_command_in_topic: ~/delta_twist_cmds
+joint_command_in_topic: ~/delta_joint_cmds
+joint_topic: /joint_states
+status_topic: ~/status
+command_out_topic: /xarm6_joint_group_position_controller/commands
+
+## Colisiones
+check_collisions: true
+collision_check_rate: 10.0
+collision_check_type: threshold_distance
+self_collision_proximity_threshold: 0.01
+scene_collision_proximity_threshold: 0.02
+collision_distance_safety_factor: 1000.0
+min_allowable_collision_distance: 0.01

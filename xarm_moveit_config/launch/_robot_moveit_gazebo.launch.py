@@ -67,6 +67,11 @@ def launch_setup(context, *args, **kwargs):
     # Get world filename and check if overhead camera should be enabled
     world_file = world.perform(context)
     add_overhead_camera = 'true' if 'color_objects' in world_file else 'false'
+    # La camara de muneca se prende sola con el mundo del ArUco (Tarea 2), o a
+    # mano con add_wrist_camera:=true si se quiere sobre cualquier otro mundo.
+    add_wrist_camera = LaunchConfiguration(
+        'add_wrist_camera',
+        default='true' if 'aruco' in world_file else 'false').perform(context)
     
     ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
 
@@ -112,6 +117,7 @@ def launch_setup(context, *args, **kwargs):
         add_realsense_d435i=add_realsense_d435i,
         add_d435i_links=add_d435i_links,
         add_overhead_camera=add_overhead_camera,
+        add_wrist_camera=add_wrist_camera,
         add_other_geometry=add_other_geometry,
         geometry_type=geometry_type,
         geometry_mass=geometry_mass,

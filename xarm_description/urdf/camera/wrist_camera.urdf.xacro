@@ -1,0 +1,127 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- Camara de muneca (eye-in-hand) para visual servoing - Tarea 2, Clase 5.
+       Se cuelga de link_eef mirando en la direccion de aproximacion (+Z), a
+       0.12 m: ya paso el cuerpo del gripper y queda entre los dedos, COAXIAL con
+       el link_tcp (que esta a 0.172).
+
+       Que sea coaxial no es un detalle estetico. Con la camara al costado, el eje
+       optico y el eje del gripper son paralelos pero separados; "marcador en el
+       centro de la imagen" pasa a significar "la CAMARA esta sobre el marcador",
+       y el TCP queda desviado esa misma distancia. Peor: el desvio en pixeles
+       depende de la altura (paralaje), asi que no se arregla con un offset fijo
+       en el setpoint. Coaxial, centrar el marcador ES poner el gripper encima, y
+       el alumno puede bajar a agarrar sin corregir nada.
+
+       El link es puramente visual: sin colision, para no meterle un obstaculo
+       nuevo al planificador ni al servo. -->
+  <xacro:macro name="wrist_camera" params="prefix:='' parent_link:='link_eef' xyz:='0 0 0.12' rpy:='0 -1.5708 0'">
+
+    <link name="${prefix}wrist_camera_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.01"/>
+        <inertia ixx="1e-6" ixy="0.0" ixz="0.0" iyy="1e-6" iyz="0.0" izz="1e-6"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.02 0.03 0.02"/>
+        </geometry>
+        <material name="${prefix}wrist_camera_material">
+          <color rgba="0.1 0.1 0.1 1"/>
+        </material>
+      </visual>
+    </link>
+
+    <!-- rpy por defecto = rotacion de -90 deg en Y: el eje X del link (hacia
+         donde mira la camara en Gazebo) queda alineado con el +Z de link_eef,
+         que es la direccion en la que apunta el gripper. -->
+    <joint name="${prefix}wrist_camera_joint" type="fixed">
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <parent link="${prefix}${parent_link}"/>
+      <child link="${prefix}wrist_camera_link"/>
+    </joint>
+
+    <!-- Frame optico en convencion ROS (Z adelante, X derecha, Y abajo). Es el
+         frame que va en el header de la imagen. -->
+    <link name="${prefix}wrist_camera_optical_frame"/>
+
+    <joint name="${prefix}wrist_camera_optical_joint" type="fixed">
+      <parent link="${prefix}wrist_camera_link"/>
+      <child link="${prefix}wrist_camera_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+
+  </xacro:macro>
+
+  <!-- Sensor RGB para Ignition Gazebo (Fortress). Sin profundidad a proposito:
+       la distancia al marcador se estima con su tamano aparente en pixeles.
+
+       OJO: el sistema Sensors NO se declara aqui. Va en el .world (table_aruco.world
+       ya lo trae). Declararlo tambien en el modelo lo carga dos veces, y Fortress
+       construye la escena dos veces: "Visual [x] already exists" y SIGSEGV del
+       hilo de render al arrancar. -->
+  <xacro:macro name="wrist_camera_ignition" params="prefix:=''">
+    <gazebo reference="${prefix}wrist_camera_link">
+      <sensor name="${prefix}wrist_camera" type="camera">
+        <always_on>true</always_on>
+        <update_rate>30.0</update_rate>
+        <visualize>true</visualize>
+        <topic>wrist_camera</topic>
+        <ignition_frame_id>${prefix}wrist_camera_optical_frame</ignition_frame_id>
+        <camera name="${prefix}wrist_camera">
+          <!-- 86 deg. Con 60 deg el marcador (36 mm) desborda el cuadro a
+               partir de unos 12 cm y el detector lo pierde justo en el tramo
+               final del descenso, que es donde mas falta hace. Con 1.5 rad
+               sigue entrando entero a 3 cm, y a 20 cm todavia mide ~60 px. -->
+          <horizontal_fov>1.5</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.02</near>
+            <far>5.0</far>
+          </clip>
+          <!-- Sin esto Fortress crea el topico de camera_info pero no publica
+               nada en el, y el alumno se queda esperando los intrinsecos. -->
+          <camera_info_topic>wrist_camera/camera_info</camera_info_topic>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Mismo sensor para Gazebo Sim (gz), por si se migra el curso. -->
+  <xacro:macro name="wrist_camera_gz" params="prefix:=''">
+    <gazebo reference="${prefix}wrist_camera_link">
+      <sensor name="${prefix}wrist_camera" type="camera">
+        <always_on>true</always_on>
+        <update_rate>30.0</update_rate>
+        <visualize>true</visualize>
+        <topic>wrist_camera</topic>
+        <gz_frame_id>${prefix}wrist_camera_optical_frame</gz_frame_id>
+        <camera name="${prefix}wrist_camera">
+          <!-- 86 deg. Con 60 deg el marcador (36 mm) desborda el cuadro a
+               partir de unos 12 cm y el detector lo pierde justo en el tramo
+               final del descenso, que es donde mas falta hace. Con 1.5 rad
+               sigue entrando entero a 3 cm, y a 20 cm todavia mide ~60 px. -->
+          <horizontal_fov>1.5</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.02</near>
+            <far>5.0</far>
+          </clip>
+          <camera_info_topic>wrist_camera/camera_info</camera_info_topic>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+</robot>

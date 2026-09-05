@@ -24,6 +24,7 @@
   <xacro:arg name="use_gazebo_camera" default="false"/>
 
   <xacro:arg name="add_overhead_camera" default="false"/>
+  <xacro:arg name="add_wrist_camera" default="false"/>
   <xacro:arg name="overhead_camera_xyz" default="0.3 0 0.8"/>
   <xacro:arg name="overhead_camera_rpy" default="0 0 0"/>
 
@@ -61,6 +62,7 @@
     add_realsense_d435i="$(arg add_realsense_d435i)" 
     add_d435i_links="$(arg add_d435i_links)" 
     add_overhead_camera="$(arg add_overhead_camera)"
+    add_wrist_camera="$(arg add_wrist_camera)"
     overhead_camera_xyz="$(arg overhead_camera_xyz)"
     overhead_camera_rpy="$(arg overhead_camera_rpy)"
     add_other_geometry="$(arg add_other_geometry)" 
