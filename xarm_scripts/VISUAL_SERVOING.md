@@ -9,11 +9,11 @@ verificado corriendo, no deducido.
 | Archivo | Qué es |
 |---|---|
 | `xarm_description/urdf/camera/wrist_camera.urdf.xacro` | Cámara de muñeca, coaxial con `link_tcp` |
-| `xarm_gazebo/scripts/gen_aruco_world.py` | Genera el mundo; el marcador ArUco se dibuja con geometría |
+| `xarm_gazebo/scripts/gen_aruco_world.py` | Genera el mundo: robot móvil omni + cubo con ArUco dibujado con geometría |
 | `xarm_gazebo/worlds/table_aruco.world` | **Generado** — no editar a mano |
 | `xarm_scripts/config/visual_servo/xarm6_servo.yaml` | Config de MoveIt Servo para Gazebo |
 | `xarm_scripts/launch/visual_servo.launch.py` | Reset + pose de observación + cambio de controlador + servo + marcador |
-| `xarm_scripts/xarm_scripts/aruco_target_mover.py` | Mueve el carro del marcador |
+| `xarm_scripts/xarm_scripts/aruco_target_mover.py` | Conduce el robot móvil: rectángulo y estacionamiento |
 
 Se tocaron además `xarm_device_macro.xacro`, `xarm_device.urdf.xacro`,
 `uf_ros_lib/moveit_configs_builder.py`, `_robot_moveit_gazebo.launch.py` y
@@ -66,29 +66,42 @@ que un `albedo_map`, pero no depende de que `IGN_GAZEBO_RESOURCE_PATH` esté bie
 se lee) ni del mapeo UV de las caras de un `<box>`. Renderiza nítido y el
 detector lo agarra sin problema.
 
-### El carro va por control de POSICIÓN
+### El objeto lo transporta un robot móvil omni, no un carro sobre un riel
 
-Primera versión: `JointController` con comandos de velocidad. La posición del
-carro queda a lazo abierto (se integra v·dt), el error se acumula ciclo a ciclo,
-y a los pocos minutos el carro llega al tope del joint y **se queda clavado ahí**
-— los comandos siguen alternando y el marcador ya no se mueve. Como los tópicos
-se ven perfectos, cuesta darse cuenta.
+El robot recorre un rectángulo de 160 × 120 mm, da tres vueltas, y se estaciona en
+el centro. Recién ahí el brazo baja a sacarle el cubo.
 
-Ahora es `JointPositionController` y el mover publica la consigna absoluta. Sin
-deriva. El límite del joint se dejó con 5 cm de margen sobre el recorrido para
-que el controlador no golpee contra el tope al frenar.
+**Se mueve con dos juntas prismáticas (X, Y) controladas por posición, no con
+ruedas motrices.** Las ruedas son decorativas, puestas a 45° para que se lea como
+una base omni (el recorrido incluye tramos laterales, que con ruedas normales no
+tendrían sentido). Simular la tracción sería peor: el recorrido dependería del
+agarre, y una patinada deja al robot fuera del alcance del brazo o fuera del campo
+de visión. Para el alumno la diferencia es invisible.
 
-Ojo con `travel`: el parámetro del nodo tiene que ser ≤ la constante `TRAVEL` de
-`gen_aruco_world.py`, que es de donde sale el límite del joint.
+Y va por **posición, no por velocidad**. Con comandos de velocidad la posición
+queda a lazo abierto: se integra v·dt, el error se acumula, y a los pocos ciclos
+el robot se clava contra el tope de una junta con el marcador quieto y los
+comandos alternando sin efecto. Como los tópicos se ven perfectos, cuesta darse
+cuenta.
 
-### El launch se encadena por eventos, no por temporizadores
+**El rectángulo entra entero en el campo de visión.** Es la medida que hace que la
+tarea sea posible: desde la pose de observación la cámara cubre ±0.164 m en
+horizontal y ±0.121 en vertical a la altura del marcador, contra ±0.08 y ±0.06 de
+recorrido. Con el riel anterior (±0.12 m) el marcador se salía de cuadro al
+descender y el brazo se quedaba sin referencia. Verificado: 12+ s de seguimiento
+continuo sin una sola pérdida.
 
-Cada `ros2 control set_controller_state` tarda unos 4 s **solo en descubrir** el
-servicio del `controller_manager`. Con `TimerAction` de 7 s, el cambio de
-controlador le caía encima al movimiento hacia la pose de observación y lo
-cortaba a la mitad: el brazo quedaba a mitad de camino, el marcador fuera de
-cuadro, y el nodo del alumno nunca detectaba nada. Con `OnProcessExit` no importa
-cuánto tarde cada paso.
+### La superficie de la mesa está en 1.015, no en 1.00
+
+Esto costó caro. La bandeja original tenía el piso en 1.010, o sea **por debajo**
+de la superficie de apoyo real: el cubo se apoyaba en la mesa, la bandeja le
+pasaba por abajo sin tocarlo, y **el marcador no se movía nunca** aunque el carro
+sí. Las primeras mediciones de seguimiento y los primeros "4 de 4 agarres" se
+hicieron, sin saberlo, sobre un objeto quieto.
+
+La lección: la altura de apoyo se mide, no se calcula. Se deja caer el cubo sobre
+la superficie y se lee la pose viva. Los espesores del `.world` no alcanzan porque
+el contacto deja que el objeto se hunda unos milímetros.
 
 ### El launch espera a la simulacion, y aborta si un paso falla
 
@@ -169,8 +182,10 @@ Medido en esta simulación, separación **entre los frames** de los dedos:
 Los frames están unos 25 mm por fuera de la superficie de contacto de cada lado,
 así que hay que restar unos 50 mm para tener la apertura útil.
 
-Con las dos causas corregidas: **4 de 4 corridas levantaron el cubo**, unos 6.5 cm
-cada una.
+**Causa 3 — la velocidad de ascenso.** Al acelerar el descenso subí `MAX_Z_SPEED`
+a 0.25 m/s, y el ascenso usaba la misma constante. El tirón rompe el agarre: el
+cubo sube 15 mm y se cae. Bajar rápido está bien; subir tiene que ir a 0.06 m/s.
+Son dos constantes distintas por una razón física, no por descuido.
 
 ## Trampa al verificar: `ign model --pose` miente
 
@@ -213,13 +228,13 @@ Verificado corriendo, en este orden:
   `/wrist_camera/camera_info` (`fx = 343.5`).
 - El servo mueve el brazo con twists en `wrist_camera_optical_frame`; `+z` de ese
   frame baja hacia la mesa.
-- Los cuatro extremos del riel son alcanzables con el gripper apuntando hacia
-  abajo (plan OK en los cuatro).
-- Seguimiento con el marcador en movimiento: 100 % del tiempo bajo 40 px con
-  `KP_XY = 1.2`.
-- Agarre y levantamiento: 4/4, con `mode:=medium`.
+- El robot móvil transporta el cubo por el rectángulo completo: recorrido medido
+  0.162 × 0.121 m contra los 0.160 × 0.120 nominales, con 0.7 mm de variación en
+  altura (el cubo no resbala ni se vuelca), y estaciona exactamente en el centro.
+- Seguimiento con el robot en movimiento: 12+ s continuos sin perder el marcador.
+- Agarre y levantamiento del cubo estacionado: 96 mm de subida.
 - Relanzar la Terminal 2 sin reiniciar Gazebo deja el brazo otra vez en
-  `(-0.300, -0.400, 0.178)` y el cubo en la bandeja.
+  `(-0.300, -0.400, 0.178)` y el cubo sobre el robot.
 
 ## Pendiente
 

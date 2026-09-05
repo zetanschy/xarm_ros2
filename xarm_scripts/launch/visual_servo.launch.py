@@ -44,8 +44,9 @@ from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 
 # Pose de observacion, en valores articulares. Corresponde a link6 en
 # (-0.30, -0.40, 0.35) de link_base con el gripper apuntando hacia abajo: la
-# camara queda a 0.23 m sobre la mesa, mirando el centro del riel, y desde ahi
-# se ve el recorrido completo del marcador.
+# camara queda a 0.23 m sobre la mesa, mirando el centro del recorrido del robot
+# movil. Desde ahi el rectangulo entero entra en el cuadro, asi que el marcador
+# no se sale de vista en ningun momento del recorrido.
 OBSERVATION_JOINTS = [-2.2136, 0.1147, -1.1834, -0.0030, 1.0658, 0.9380]
 
 
@@ -87,9 +88,9 @@ def launch_setup(context, *args, **kwargs):
     #
     # El orden importa. Primero se abre el gripper (si no, el cubo se
     # teletransporta y despues cae de los dedos). Despues se manda el carro al
-    # centro del riel y se espera a que llegue: si se teletransporta el cubo
-    # mientras el carro esta en un extremo, el cubo aparece FUERA de la bandeja,
-    # se queda en la mesa, y el marcador ya no se mueve con el carro.
+    # robot movil al centro y se espera a que llegue: si se teletransporta el
+    # cubo mientras el robot esta en una esquina, el cubo aparece al lado del
+    # robot en vez de encima, se queda en la mesa, y ya no viaja con el.
     #
     # OJO al verificarlo a mano: `ign model --model aruco_cube --pose` devuelve
     # una pose cacheada y miente. La pose viva sale de
@@ -135,15 +136,22 @@ def launch_setup(context, *args, **kwargs):
             "trajectory_msgs/msg/JointTrajectory "
             "'{joint_names: [drive_joint], points: [{positions: [0.0], "
             "time_from_start: {sec: 1, nanosec: 0}}]}' > /dev/null 2>&1 || true; "
-            'ros2 topic pub -r 20 -t 40 /aruco_cart/cmd_pos '
+            'ros2 topic pub -r 20 -t 40 /mobile_robot/cmd_x '
+            '  std_msgs/msg/Float64 "{data: 0.0}" > /dev/null 2>&1 || true; '
+            'ros2 topic pub -r 20 -t 40 /mobile_robot/cmd_y '
             '  std_msgs/msg/Float64 "{data: 0.0}" > /dev/null 2>&1 || true; '
             'sleep 2; '
             'ign service -s /world/default/set_pose '
             '  --reqtype ignition.msgs.Pose --reptype ignition.msgs.Boolean '
             '  --timeout 3000 '
-            '  --req \'name: "aruco_cube", id: 36, '
-            '     position: {x: 0.2, y: -0.8, z: 1.06}, '
-            "     orientation: {x: 0, y: 0, z: 0, w: 1}' > /dev/null 2>&1 || true; "
+            # Sin `id`: Gazebo lo asigna al cargar el mundo y cambia entre
+            # arranques (se vieron 28 y 36). Con un id equivocado la peticion
+            # falla en silencio aunque lleve el nombre correcto, y el reset no
+            # hace nada. Y sin comas: el formato de texto de protobuf no las usa
+            # como separador, y con ellas se pierden campos.
+            '  --req \'name: "aruco_cube" '
+            '     position { x: 0.2 y: -0.8 z: 1.090 } '
+            "     orientation { x: 0 y: 0 z: 0 w: 1 }' > /dev/null 2>&1 || true; "
             'sleep 2; '
             'echo "escena reseteada"; '
             'exit 0',
@@ -166,6 +174,11 @@ def launch_setup(context, *args, **kwargs):
             '  inactive --controller-manager $CM > /dev/null 2>&1 || true; '
             'ros2 control set_controller_state xarm6_traj_controller active '
             '  --controller-manager $CM > /dev/null 2>&1 || true; '
+            'for i in $(seq 1 20); do '
+            '  ros2 action list 2>/dev/null '
+            '    | grep -q "^/xarm6_traj_controller/follow_joint_trajectory$" && break; '
+            '  sleep 1; '
+            'done; '
             # Se manda por la ACCION y no por el topico
             # /xarm6_traj_controller/joint_trajectory: la accion bloquea hasta
             # que el brazo llega y dice si el goal fue aceptado o rechazado. Con
@@ -173,7 +186,11 @@ def launch_setup(context, *args, **kwargs):
             # inactivo la trayectoria se publica al vacio, el launch sigue
             # contento, y el alumno termina con el brazo en la pose de spawn
             # buscando el problema en su codigo de vision.
-            'OUT=$(ros2 action send_goal '
+            # `ros2 action send_goal` se cuelga PARA SIEMPRE si el servidor de
+            # accion todavia no existe (el controlador recien activado tarda un
+            # instante en publicarlo). Sin el timeout, el launch se queda mudo
+            # despues de "escena reseteada" y no pasa nada mas.
+            'OUT=$(timeout 40 ros2 action send_goal '
             '  /xarm6_traj_controller/follow_joint_trajectory '
             '  control_msgs/action/FollowJointTrajectory '
             "  '{trajectory: {joint_names: [joint1, joint2, joint3, joint4, joint5, joint6], "

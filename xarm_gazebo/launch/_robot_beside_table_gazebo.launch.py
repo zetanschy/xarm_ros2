@@ -300,9 +300,13 @@ def launch_setup(context, *args, **kwargs):
                 '/wrist_camera@sensor_msgs/msg/Image@ignition.msgs.Image',
                 '/wrist_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
             ])
-        # Consigna de posicion del carro del marcador (ROS -> Ignition, en m).
+        # Consignas de posicion del robot movil que lleva el marcador
+        # (ROS -> Ignition, en m respecto del centro de su recorrido).
         if 'aruco' in world_file:
-            args.append('/aruco_cart/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double')
+            args.extend([
+                '/mobile_robot/cmd_x@std_msgs/msg/Float64]ignition.msgs.Double',
+                '/mobile_robot/cmd_y@std_msgs/msg/Float64]ignition.msgs.Double',
+            ])
         gz_bridge = Node(
             package='ros_ign_bridge',
             executable='parameter_bridge',
