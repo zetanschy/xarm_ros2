@@ -121,30 +121,40 @@ ros2 launch xarm_scripts hybrid_planning_xarm6.launch.py run_demo:=false
    `failed to find a solution` y ni el paso de ir al inicio funciona.
 2. **Paso 1** — agrega `pared_estatica`. Ya está cuando se planifica, así que el
    global planner la esquiva desde el primer plan.
-3. **Paso 2** — manda la meta. Al 35% del camino recorrido inyecta
-   `obstaculo_sorpresa` cruzando lo que queda de la trayectoria.
+3. **Paso 2** — manda la meta. En cuanto el global planner **publica** su primera
+   solución, inyecta `placa_sorpresa` cruzando la trayectoria y borra la estática.
+4. El local planner ve que la trayectoria dejó de ser válida y **frena el brazo en
+   el lugar** (`stop_before_collision`), el manager pide un plan nuevo, el plan
+   nuevo **rodea** la placa, y la ejecución sigue hasta la meta. Ese es el ciclo
+   completo: no sólo se invalida, se esquiva.
 
-El disparo del paso 3 va por **progreso**, no por el primer feedback. El primer
-feedback llega ~1 ms después de aceptar la meta, cuando el brazo todavía no se
-movió: inyectar ahí hace que el local planner frene de una y el manager entre en
-un bucle de replanificación sin haber ejecutado nada.
+El disparo del paso 3 va por la **publicación de la solución global** (suscripción
+a `global_trajectory`), igual que el demo del Panda. Se probó disparar por
+progreso del brazo y por el primer feedback: el feedback llega ~1 ms después de
+aceptar la meta, cuando el brazo todavía no se movió, así que el local planner
+frena de una y el manager entra en un bucle de replanificación sin haber ejecutado
+nada. Disparar por la solución global pasa una vez por ciclo de planificación, y
+como las operaciones sobre la escena son idempotentes, después del primer swap la
+escena deja de cambiar y el replan converge.
 
 ## Qué mirar en los logs
 
 ```
 [local_planner_component]: Using 'trajectory_msgs/JointTrajectory' as local solution topic type
-[hybrid_planning_manager]: Using planner logic interface 'moveit_hybrid_planning/ReplanInvalidatedTrajectory'
+[hybrid_planning_manager]: Using planner logic interface 'xarm_hybrid_planning/ReplanWhenIdle'
 [hybrid_planning_manager]: Received goal request
 [global_planner_component]: Received global planning goal request      <- plan global
 [local_planner_component]: The local planner is solving...             <- arranca la ejecucion
->>> 35% del camino recorrido: aparece "obstaculo_sorpresa" ...
+>>> Salio la primera solucion global. Ahora cambia la escena ...
 [local_planner_component]: Collision ahead, holding current position   <- lo detecta el local
 [global_planner_component]: Received global planning goal request      <- el manager pide replan
+[hybrid_planning_demo]: Hybrid planning termino OK.                    <- llego a la meta
 ```
 
-Esa última línea repitiéndose **es** el hybrid planning: el global planner
-volviendo a resolver mientras el local mantiene el robot quieto y seguro. Con
-`SinglePlanExecution` en lugar de `ReplanInvalidatedTrajectory`, ahí abortaría.
+Las dos líneas del medio **son** el hybrid planning: el local mantiene el robot
+quieto y seguro mientras el global vuelve a resolver. Y la última es la que cierra
+el argumento: el plan nuevo rodeó la placa y el brazo llegó a la meta. Con
+`SinglePlanExecution` en lugar de `ReplanWhenIdle`, ahí abortaría.
 
 ## Estado: cerrado (5 de 5)
 
@@ -353,7 +363,7 @@ camino articular `START_JOINTS` → `GOAL_JOINTS`):
 
 ```
   0%  (+0.539, +0.000, +0.495)
- 35%  (+0.470, +0.250, +0.448)   <- punto de inyeccion
+ 35%  (+0.470, +0.250, +0.448)   <- por aqui anda el brazo cuando entra la placa
  50%  (+0.402, +0.339, +0.429)
  75%  (+0.255, +0.444, +0.397)
 100%  (+0.084, +0.486, +0.369)   <- meta

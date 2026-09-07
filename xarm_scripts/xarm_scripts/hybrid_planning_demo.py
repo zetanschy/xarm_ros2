@@ -7,15 +7,20 @@ Que se ve en la demo
 1. Se agrega una pared al planning scene.
 2. Se manda UNA meta al hybrid planner. El global planner (OMPL) resuelve el
    camino completo y el local planner empieza a ejecutarlo a 50 Hz.
-3. A mitad del movimiento aparece una segunda pared cruzando el camino ya
-   planificado.
-4. El local planner detecta que la trayectoria dejo de ser valida y avisa. El
-   planner logic plugin (ReplanInvalidatedTrajectory) le pide al global planner
-   un plan nuevo, y la ejecucion sigue sin volver a cero.
+3. En cuanto sale esa primera solucion global aparece una placa nueva cruzando
+   el camino ya planificado (y se borra la primera, para que la escena no
+   acumule obstaculos).
+4. El local planner detecta que la trayectoria dejo de ser valida y FRENA el
+   brazo en el lugar (stop_before_collision). El planner logic plugin
+   (xarm_hybrid_planning/ReplanWhenIdle) le pide al global planner un plan nuevo.
+5. El plan nuevo RODEA la placa que acaba de aparecer, el local planner lo
+   engancha en el waypoint mas cercano al estado real del brazo, y la ejecucion
+   sigue hasta la meta sin volver a cero. Medido: cierra en 3 replanificaciones,
+   5 de 5 corridas, con 0.022 rad de error final.
 
-Ese paso 4 es la diferencia con lo que se vio en las clases anteriores: con
+Los pasos 4 y 5 son la diferencia con lo que se vio en las clases anteriores: con
 move_group, si el mundo cambia despues de planificar, la trayectoria se ejecuta
-igual (o se aborta). Aca se replanifica en caliente.
+igual (o se aborta). Aca se frena, se replanifica en caliente, y se esquiva.
 
 Uso
 ---
@@ -77,14 +82,15 @@ WALL_STATIC = {
     'pos': (0.35, 0.10, 0.25),
 }
 
-# Placas que aparecen cuando sale la primera solucion global. Igual que en el
-# demo de MoveIt, son DOS y se agregan a la vez que se BORRA la estatica: la
-# escena no acumula obstaculos, y el brazo siempre tiene por donde pasar.
-# UNA sola placa, no dos. Con dos, el problema que le queda al global planner es
-# lo bastante cerrado como para que muchas soluciones de RRTConnect no sean
-# seguibles por SimpleSampler/ForwardTrajectory, y la demo se vuelve una loteria:
-# a veces sale en 1-4 replanificaciones y a veces gasta las 30 y se rinde. Con una
-# placa el desvio es amplio y cualquier solucion sirve.
+# Placa que aparece cuando sale la primera solucion global. Se agrega a la vez que
+# se BORRA la estatica, como en el demo de MoveIt: la escena no acumula
+# obstaculos, y el brazo siempre tiene por donde pasar.
+#
+# UNA sola placa, no dos como el demo de MoveIt. Con dos, el problema que le queda
+# al global planner es lo bastante cerrado como para que muchas soluciones de
+# RRTConnect no sean seguibles por ForwardTrajectory, y la demo se vuelve una
+# loteria: a veces sale en 1-4 replanificaciones y a veces gasta los reintentos.
+# Con una placa el desvio es amplio y cualquier solucion sirve.
 WALLS_SURPRISE = [
     {
         'id': 'placa_sorpresa',
@@ -202,16 +208,19 @@ class HybridPlanningDemo(Node):
         # Estos dos numeros son la diferencia entre que el replan funcione y que
         # todo aborte, y no es obvio por que.
         #
-        # ReplanInvalidatedTrajectory le pide un plan global nuevo cada vez que el
-        # local planner reporta COLLISION_AHEAD. forward_trajectory.cpp manda ese
-        # evento una sola vez por trayectoria, pero resetea el flag en cuanto llega
-        # una solucion global nueva, asi que los eventos se repiten cada ~80 ms
-        # mientras el brazo siga frenado.
+        # El local planner reporta COLLISION_AHEAD cada ~80 ms mientras el brazo
+        # siga frenado (forward_trajectory.cpp manda el evento una vez por
+        # trayectoria, pero resetea el flag en cuanto llega una solucion global
+        # nueva). Cada evento es un pedido de replanificacion.
         #
-        # Si el global planner todavia esta pensando cuando llega el evento
-        # siguiente, la meta anterior se ABORTA. Y el plugin no sabe reaccionar a
-        # 'Global planning action aborted': devuelve FAILURE y muere todo el
-        # hybrid planning. Con allowed_planning_time = 5.0 eso pasaba siempre.
+        # Con el ReplanInvalidatedTrajectory de MoveIt, si el global planner
+        # todavia estaba pensando cuando llegaba el evento siguiente, la meta
+        # anterior se ABORTABA, y el plugin devolvia FAILURE ante
+        # 'Global planning action aborted': moria todo el hybrid planning. Con
+        # allowed_planning_time = 5.0 eso pasaba siempre. ReplanWhenIdle no pide
+        # un plan si ya hay uno en vuelo, asi que ya no depende de esto; el 0.5
+        # se deja igual porque RRTConnect resuelve esto en decenas de ms y no
+        # hay razon para darle mas.
         #
         # Con 0.5 s y un solo intento, cada replan termina (RRTConnect resuelve
         # esto en decenas de ms) antes de que llegue el evento siguiente.
@@ -300,21 +309,16 @@ class HybridPlanningDemo(Node):
         if self.result_code == 1:
             self.get_logger().info('Hybrid planning termino OK.')
         elif self.surprise_sent:
-            # Resultado ESPERADO con ReplanInvalidatedTrajectory en este momento.
-            # Ver HYBRID_PLANNING.md: el plugin no sabe reaccionar al evento
-            # 'Global planning action aborted', y ese evento aparece porque el
-            # propio bucle de replanificacion se pisa sus pedidos al global
-            # planner. No es un error de esta configuracion.
-            self.get_logger().warning(
+            # Con ReplanWhenIdle + SceneSyncingPipeline esto ya NO es lo esperado:
+            # medido, el ciclo cierra 5 de 5. Si aparece, es una falla de verdad.
+            self.get_logger().error(
                 f'Hybrid planning termino con error_code={self.result_code} '
-                f'"{message}".')
-            self.get_logger().warning(
-                'Esto es lo esperado hoy: el bucle de replanificacion se pisa '
-                'sus propios pedidos y ReplanInvalidatedTrajectory no maneja el '
-                'evento "Global planning action aborted". Lo que SI se demostro '
-                'esta arriba en el log: el local planner detecto el obstaculo '
-                'nuevo y freno el brazo, y el manager pidio replanificacion. '
-                'Ver HYBRID_PLANNING.md, seccion "Limitacion conocida".')
+                f'"{message}" DESPUES de inyectar la placa sorpresa.')
+            self.get_logger().error(
+                'El local planner detecto el obstaculo y freno (eso esta arriba '
+                'en el log), pero la replanificacion no llego a la meta. Lo mas '
+                'probable es que el brazo arrancara de una pose invalida de una '
+                'corrida anterior. Ver HYBRID_PLANNING.md, "Relanzar el ejemplo".')
         else:
             self.get_logger().error(
                 f'Hybrid planning fallo: error_code={self.result_code} "{message}"')
