@@ -44,6 +44,7 @@ setup(
             'color_detector = xarm_scripts.color_detector:main',
             'hybrid_planning_demo = xarm_scripts.hybrid_planning_demo:main',
             'aruco_target_mover = xarm_scripts.aruco_target_mover:main',
+            'aruco_servo = xarm_scripts.aruco_servo:main',
             'color_sorter = xarm_scripts.color_sorter:main',
         ],
     },

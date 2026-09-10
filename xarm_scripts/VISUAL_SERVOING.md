@@ -94,8 +94,16 @@ leyendo como el mismo robot. Las medidas del chasis (track 475 mm, wheelbase
 410 mm, ground clearance 45.5 mm, eje a 56 mm) salen del
 `origin_one.urdf.xacro` original, escaladas igual.
 
-Recorre un rectángulo de **220 × 160 mm**, da tres vueltas, y se estaciona en el
-centro. Recién ahí el brazo baja a sacarle el cubo.
+Recorre un rectángulo de **220 × 160 mm** con las esquinas redondeadas (radio
+30 mm), da **una vuelta de corrido, sin frenar en ningún vértice**, y se
+estaciona en el centro. Recién ahí el brazo baja a sacarle el cubo.
+
+Que no frene en las esquinas es deliberado: antes paraba en los cuatro vértices
+de cada vuelta, y eso obligaba al alumno a distinguir «paró en una esquina» de
+«se estacionó», un problema aparte y más difícil que el lazo visual. Ahora la
+única velocidad cero de la corrida es el estacionamiento. El radio sale de
+acotar la aceleración centrípeta v²/r por debajo de los 0.15 m/s² con los que el
+cubo no patina: 0.03 m/s² en `slow` y 0.12 en `medium`.
 
 **Se mueve con dos juntas prismáticas (X, Y) controladas por posición, no con las
 ruedas.** Las ruedas mecanum son solo visuales y no giran. Que sean mecanum no es
@@ -118,8 +126,8 @@ cuenta.
 tarea sea posible: desde la pose de observación la cámara cubre ±0.207 m en
 horizontal y ±0.155 en vertical a la altura del marcador, contra ±0.11 y ±0.08 de
 recorrido. Con el riel anterior el marcador se salía de cuadro al descender y el
-brazo se quedaba sin referencia. Verificado: el recorrido entero, tres vueltas,
-con **cero pérdidas** de marcador.
+brazo se quedaba sin referencia. Verificado: el recorrido entero, con **cero
+pérdidas** de marcador.
 
 ### La superficie de la mesa está en 1.015, no en 1.00
 
@@ -300,8 +308,9 @@ Verificado corriendo, en este orden:
 ## Pendiente
 
 - **`mode:=fast` (0.12 m/s) no está probado a fondo.** El enunciado sólo exige
-  `slow` y `medium`. Si se quiere usar `fast` como desafío opcional, hay que
-  medir antes si el lazo lo aguanta.
+  `slow`. Si se quiere usar `medium` o `fast` como desafío opcional, hay que
+  medir antes si el lazo lo aguanta; en `fast` la aceleración centrípeta en las
+  esquinas redondeadas sube a 0.48 m/s² y el cubo probablemente patine.
 - El `Sensors` de Ignition **no** se declara en `wrist_camera.urdf.xacro` a
   propósito: va en el `.world`. Declararlo en los dos lados lo carga dos veces,
   Fortress construye la escena por duplicado y el hilo de render se cae con
